@@ -3,6 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 
+
 const register = async (req, res) => {
     try {
         const {
@@ -14,15 +15,16 @@ const register = async (req, res) => {
             phone
         } = req.body;
 
-       
         if (!full_name || !email || !password || !department) {
             return res.status(400).json({
                 success: false,
-                message: "Full name, email, password and department are required."
+                message:
+                    "Full name, email, password and department are required."
             });
         }
 
-        const checkEmail = "SELECT user_id FROM users WHERE email = ?";
+        const checkEmail =
+            "SELECT user_id FROM users WHERE email = ?";
 
         db.query(checkEmail, [email], async (err, results) => {
             if (err) {
@@ -33,6 +35,7 @@ const register = async (req, res) => {
                 });
             }
 
+            
             if (results.length > 0) {
                 return res.status(409).json({
                     success: false,
@@ -40,12 +43,18 @@ const register = async (req, res) => {
                 });
             }
 
-           
             const hashedPassword = await bcrypt.hash(password, 10);
 
             const sql = `
                 INSERT INTO users
-                (full_name, email, password, designation, department, phone)
+                (
+                    full_name,
+                    email,
+                    password,
+                    designation,
+                    department,
+                    phone
+                )
                 VALUES (?, ?, ?, ?, ?, ?)
             `;
 
@@ -92,7 +101,7 @@ const login = (req, res) => {
 
     const { email, password } = req.body;
 
-   
+
     if (!email || !password) {
         return res.status(400).json({
             success: false,
@@ -100,7 +109,8 @@ const login = (req, res) => {
         });
     }
 
-    const sql = "SELECT * FROM users WHERE email = ?";
+    const sql =
+        "SELECT * FROM users WHERE email = ?";
 
     db.query(sql, [email], async (err, results) => {
 
@@ -112,7 +122,7 @@ const login = (req, res) => {
             });
         }
 
-      
+        
         if (results.length === 0) {
             return res.status(401).json({
                 success: false,
@@ -153,6 +163,7 @@ const login = (req, res) => {
             success: true,
             message: "Login successful.",
             token: token,
+
             user: {
                 user_id: user.user_id,
                 full_name: user.full_name,
@@ -166,7 +177,168 @@ const login = (req, res) => {
 };
 
 
+
+const changeAdminCredentials = async (req, res) => {
+
+    try {
+
+        const {
+            oldEmail,
+            newEmail,
+            newPassword
+        } = req.body;
+
+
+        
+        if (!oldEmail || !newEmail || !newPassword) {
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Old email, new email and new password are required."
+            });
+
+        }
+
+
+
+        const findUser =
+            "SELECT * FROM users WHERE email = ?";
+
+
+        db.query(
+            findUser,
+            [oldEmail],
+            async (err, results) => {
+
+                if (err) {
+
+                    return res.status(500).json({
+                        success: false,
+                        message: "Database error.",
+                        error: err.message
+                    });
+
+                }
+
+
+                
+                if (results.length === 0) {
+
+                    return res.status(404).json({
+                        success: false,
+                        message: "Old email not found."
+                    });
+
+                }
+
+
+                const checkNewEmail = `
+                    SELECT user_id
+                    FROM users
+                    WHERE email = ?
+                    AND email != ?
+                `;
+
+
+                db.query(
+                    checkNewEmail,
+                    [newEmail, oldEmail],
+                    async (err, existingUsers) => {
+
+                        if (err) {
+
+                            return res.status(500).json({
+                                success: false,
+                                message: "Database error.",
+                                error: err.message
+                            });
+
+                        }
+
+
+                       
+                        if (existingUsers.length > 0) {
+
+                            return res.status(409).json({
+                                success: false,
+                                message:
+                                    "New email already exists."
+                            });
+
+                        }
+
+
+                       
+                        const hashedPassword =
+                            await bcrypt.hash(
+                                newPassword,
+                                10
+                            );
+
+
+                        
+                        const updateSQL = `
+                            UPDATE users
+                            SET
+                                email = ?,
+                                password = ?
+                            WHERE email = ?
+                        `;
+
+
+                        db.query(
+                            updateSQL,
+                            [
+                                newEmail,
+                                hashedPassword,
+                                oldEmail
+                            ],
+                            (err, result) => {
+
+                                if (err) {
+
+                                    return res.status(500).json({
+                                        success: false,
+                                        message:
+                                            "Failed to update credentials.",
+                                        error: err.message
+                                    });
+
+                                }
+
+
+                                res.json({
+                                    success: true,
+                                    message:
+                                        "Admin email and password changed successfully."
+                                });
+
+                            }
+                        );
+
+                    }
+                );
+
+            }
+        );
+
+    } catch (error) {
+
+        res.status(500).json({
+            success: false,
+            message: "Server error.",
+            error: error.message
+        });
+
+    }
+};
+
+
+
 module.exports = {
     register,
-    login
+    login,
+    changeAdminCredentials,
+    
 };

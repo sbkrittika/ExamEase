@@ -9,6 +9,7 @@ import AuthLayout from './layouts/AuthLayout';
 import AdminLayout from './layouts/AdminLayout';
 
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Students from './pages/Students';
 import Courses from './pages/Courses';
@@ -50,6 +51,19 @@ function App() {
             path="/login"
             element={<Login />}
           />
+          <Route element={<AuthLayout />}>
+
+    <Route
+        path="/login"
+        element={<Login />}
+    />
+
+    <Route
+        path="/register"
+        element={<Register />}
+    />
+
+</Route>
 
         </Route>
 

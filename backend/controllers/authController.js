@@ -117,8 +117,8 @@ const register = async (req, res) => {
                 if (err) {
                     return res.status(500).json({
                         success: false,
-                        message: "Database error.",
-                        error: err.message
+                        message: err.message,
+                        
                     });
                 }
 

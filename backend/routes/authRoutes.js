@@ -8,19 +8,13 @@ const {
     changeAdminCredentials
 } = require("../controllers/authController");
 
-
-
 router.post("/register", register);
 
-
-
 router.post("/login", login);
-
 
 router.post(
     "/reset-admin",
     changeAdminCredentials
 );
-
 
 module.exports = router;

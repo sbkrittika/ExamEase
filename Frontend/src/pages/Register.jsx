@@ -10,6 +10,9 @@ import {
     ArrowLeft
 } from "lucide-react";
 
+const API_URL =
+    "https://examease-backend-r8s4.onrender.com";
+
 export default function Register() {
     const navigate = useNavigate();
 
@@ -35,151 +38,124 @@ export default function Register() {
         }));
     };
 
-
     const handleRegister = async (e) => {
-    e.preventDefault();
+        e.preventDefault();
 
-    const email = formData.email.trim().toLowerCase();
+        const email = formData.email.trim().toLowerCase();
 
-    if (!email.endsWith("@eastdelta.edu.bd")) {
-        alert("Please use your East Delta University email.");
-        return;
-    }
-
-    if (
-        formData.role === "student" &&
-        !/^\d{9}@eastdelta\.edu\.bd$/i.test(email)
-    ) {
-        alert(
-            "Student email must contain exactly 9 digits before @eastdelta.edu.bd."
-        );
-        return;
-    }
-
-    if (
-        formData.role === "faculty" &&
-        !/^[a-z]+(?:[._-][a-z]+)+@eastdelta\.edu\.bd$/i.test(email)
-    ) {
-        alert(
-            "Please enter a valid faculty email. Example: jahidul.h@eastdelta.edu.bd"
-        );
-        return;
-    }
-
-    if (formData.password !== formData.confirm_password) {
-        alert("Passwords do not match.");
-        return;
-    }
-
-    if (formData.password.length < 6) {
-        alert("Password must be at least 6 characters long.");
-        return;
-    }
-
-    if (!formData.role) {
-        alert("Please select your account type.");
-        return;
-    }
-
-    setLoading(true);
-
-    try {
-        const response = await fetch(
-            "https://examease-backend-r8s4.onrender.com/api/auth/register",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    full_name: formData.full_name,
-                    email: email,
-                    password: formData.password,
-                    confirm_password:
-                        formData.confirm_password,
-                    role: formData.role,
-                    department: formData.department,
-                    designation:
-                        formData.designation,
-                    phone: formData.phone
-                })
-            }
-        );
-
-        const text = await response.text();
-
-        console.log(
-            "REGISTER STATUS:",
-            response.status
-        );
-
-        console.log(
-            "REGISTER RESPONSE:",
-            text
-        );
-
-        let data;
-
-        try {
-            data = JSON.parse(text);
-        } catch {
-            data = {
-                message:
-                    text ||
-                    "Server returned an invalid response."
-            };
-        }
-
-        if (!response.ok) {
+        if (!email.endsWith("@eastdelta.edu.bd")) {
             alert(
-                `Error ${response.status}: ${
-                    data.message ||
-                    "Registration failed."
-                }`
+                "Please use your East Delta University email."
             );
             return;
         }
 
-        alert(
-            data.message ||
-            "Account created successfully! You can now sign in."
-        );
+        if (
+            formData.role === "student" &&
+            !/^\d{9}@eastdelta\.edu\.bd$/i.test(email)
+        ) {
+            alert(
+                "Student email must contain exactly 9 digits before @eastdelta.edu.bd."
+            );
+            return;
+        }
 
-        navigate("/login", {
-            replace: true
-        });
+        if (
+            formData.role === "faculty" &&
+            !/^[a-z]+(?:[._-][a-z]+)+@eastdelta\.edu\.bd$/i.test(
+                email
+            )
+        ) {
+            alert(
+                "Please enter a valid faculty email. Example: jahidul.h@eastdelta.edu.bd"
+            );
+            return;
+        }
 
-    } catch (error) {
+        if (formData.password !== formData.confirm_password) {
+            alert("Passwords do not match.");
+            return;
+        }
 
-        console.error(
-            "FETCH ERROR:",
-            error
-        );
+        if (formData.password.length < 6) {
+            alert(
+                "Password must be at least 6 characters long."
+            );
+            return;
+        }
 
-        alert(
-            "Cannot connect to the ExamEase backend.\n\n" +
-            error.message
-        );
+        if (!formData.role) {
+            alert("Please select your account type.");
+            return;
+        }
 
-    } finally {
-        setLoading(false);
-    }
-};
+        setLoading(true);
 
+        try {
+            const response = await fetch(
+                `${API_URL}/api/auth/register`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        full_name: formData.full_name.trim(),
+                        email,
+                        password: formData.password,
+                        confirm_password:
+                            formData.confirm_password,
+                        role: formData.role,
+                        department:
+                            formData.department.trim(),
+                        designation:
+                            formData.designation.trim(),
+                        phone: formData.phone.trim()
+                    })
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                alert(
+                    data.message ||
+                        data.error ||
+                        "Registration failed."
+                );
+                return;
+            }
+
+            alert(
+                "Account created successfully! You can now sign in."
+            );
+
+            navigate("/login", {
+                replace: true
+            });
+        } catch (error) {
+            console.error(
+                "Registration error:",
+                error
+            );
+
+            alert(
+                "Cannot connect to ExamEase server."
+            );
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div className="glass-dark rounded-3xl p-8 sm:p-10 w-full animate-fade-in-up">
 
-            {/* Header */}
             <div className="flex flex-col items-center mb-8">
-
                 <div className="w-14 h-14 bg-blue-500 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-500/30">
-
                     <UserPlus
                         size={28}
                         className="text-white"
                     />
-
                 </div>
 
                 <h1 className="text-2xl font-bold text-white mb-2">
@@ -189,24 +165,19 @@ export default function Register() {
                 <p className="text-slate-400 text-center text-sm">
                     Use your East Delta University email
                 </p>
-
             </div>
-
 
             <form
                 onSubmit={handleRegister}
                 className="space-y-4"
             >
 
-                {/* Full Name */}
                 <div>
-
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                         Full Name
                     </label>
 
                     <div className="relative">
-
                         <User
                             size={19}
                             className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
@@ -216,28 +187,20 @@ export default function Register() {
                             type="text"
                             name="full_name"
                             required
-                            value={
-                                formData.full_name
-                            }
+                            value={formData.full_name}
                             onChange={handleChange}
                             placeholder="Enter your full name"
                             className="w-full pl-11 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
-
                     </div>
-
                 </div>
 
-
-                {/* Email */}
                 <div>
-
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                         University Email
                     </label>
 
                     <div className="relative">
-
                         <Mail
                             size={19}
                             className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
@@ -247,22 +210,15 @@ export default function Register() {
                             type="email"
                             name="email"
                             required
-                            value={
-                                formData.email
-                            }
+                            value={formData.email}
                             onChange={handleChange}
                             placeholder="242010712@eastdelta.edu.bd"
                             className="w-full pl-11 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
-
                     </div>
-
                 </div>
 
-
-                {/* Account Type */}
                 <div>
-
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                         Account Type
                     </label>
@@ -274,42 +230,26 @@ export default function Register() {
                         onChange={handleChange}
                         className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
-
-                        <option
-                            value=""
-                            className="bg-slate-800"
-                        >
+                        <option value="">
                             Select account type
                         </option>
 
-                        <option
-                            value="student"
-                            className="bg-slate-800"
-                        >
+                        <option value="student">
                             Student
                         </option>
 
-                        <option
-                            value="faculty"
-                            className="bg-slate-800"
-                        >
+                        <option value="faculty">
                             Faculty
                         </option>
-
                     </select>
-
                 </div>
 
-
-                {/* Department */}
                 <div>
-
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                         Department
                     </label>
 
                     <div className="relative">
-
                         <Building2
                             size={19}
                             className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
@@ -319,57 +259,41 @@ export default function Register() {
                             type="text"
                             name="department"
                             required
-                            value={
-                                formData.department
-                            }
+                            value={formData.department}
                             onChange={handleChange}
                             placeholder="e.g. CSE"
                             className="w-full pl-11 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
-
                     </div>
-
                 </div>
 
-
-                {/* Designation */}
                 <div>
-
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                         Designation
                         <span className="text-slate-500">
-                            {" "}
-                            (Optional)
+                            {" "} (Optional)
                         </span>
                     </label>
 
                     <input
                         type="text"
                         name="designation"
-                        value={
-                            formData.designation
-                        }
+                        value={formData.designation}
                         onChange={handleChange}
                         placeholder="e.g. Lecturer / Student"
                         className="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
-
                 </div>
 
-
-                {/* Phone */}
                 <div>
-
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                         Phone
                         <span className="text-slate-500">
-                            {" "}
-                            (Optional)
+                            {" "} (Optional)
                         </span>
                     </label>
 
                     <div className="relative">
-
                         <Phone
                             size={19}
                             className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
@@ -378,28 +302,20 @@ export default function Register() {
                         <input
                             type="tel"
                             name="phone"
-                            value={
-                                formData.phone
-                            }
+                            value={formData.phone}
                             onChange={handleChange}
                             placeholder="01XXXXXXXXX"
                             className="w-full pl-11 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
-
                     </div>
-
                 </div>
 
-
-                {/* Password */}
                 <div>
-
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                         Password
                     </label>
 
                     <div className="relative">
-
                         <Lock
                             size={19}
                             className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
@@ -409,28 +325,20 @@ export default function Register() {
                             type="password"
                             name="password"
                             required
-                            value={
-                                formData.password
-                            }
+                            value={formData.password}
                             onChange={handleChange}
                             placeholder="Minimum 6 characters"
                             className="w-full pl-11 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
-
                     </div>
-
                 </div>
 
-
-                {/* Confirm Password */}
                 <div>
-
                     <label className="block text-sm font-medium text-slate-300 mb-2">
                         Confirm Password
                     </label>
 
                     <div className="relative">
-
                         <Lock
                             size={19}
                             className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
@@ -440,20 +348,14 @@ export default function Register() {
                             type="password"
                             name="confirm_password"
                             required
-                            value={
-                                formData.confirm_password
-                            }
+                            value={formData.confirm_password}
                             onChange={handleChange}
                             placeholder="Enter password again"
                             className="w-full pl-11 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
-
                     </div>
-
                 </div>
 
-
-                {/* Create Account Button */}
                 <button
                     type="submit"
                     disabled={loading}
@@ -466,24 +368,15 @@ export default function Register() {
 
             </form>
 
-
-            {/* Back to Login */}
             <div className="mt-6 text-center">
-
                 <button
                     type="button"
-                    onClick={() =>
-                        navigate("/login")
-                    }
+                    onClick={() => navigate("/login")}
                     className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm"
                 >
-
                     <ArrowLeft size={17} />
-
                     Back to Sign In
-
                 </button>
-
             </div>
 
         </div>

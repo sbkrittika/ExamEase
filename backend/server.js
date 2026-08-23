@@ -3,6 +3,8 @@ const cors = require("cors");
 require("dotenv").config();
 
 const db = require("./config/db");
+console.log("DB NAME FROM RENDER:", process.env.DB_NAME);
+console.log("DB HOST FROM RENDER:", process.env.DB_HOST);
 const authRoutes = require("./routes/authRoutes");
 
 const app = express();

@@ -18,6 +18,8 @@ db.connect((err) => {
     }
 
     console.log("MySQL connected successfully!");
+    console.log("DATABASE:", process.env.DB_NAME);
+    console.log("HOST:", process.env.DB_HOST);
 });
 
 module.exports = db;

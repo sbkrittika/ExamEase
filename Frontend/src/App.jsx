@@ -2,74 +2,47 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
-  Navigate
-} from 'react-router-dom';
+  Navigate,
+} from "react-router-dom";
 
-import AuthLayout from './layouts/AuthLayout';
-import AdminLayout from './layouts/AdminLayout';
+import AuthLayout from "./layouts/AuthLayout";
+import AdminLayout from "./layouts/AdminLayout";
 
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import Students from './pages/Students';
-import Courses from './pages/Courses';
-import Faculty from './pages/Faculty';
-import Rooms from './pages/Rooms';
-import Exams from './pages/Exams';
-import SeatPlan from './pages/SeatPlan';
-import Invigilation from './pages/Invigilation';
-import AIAssistant from './pages/AIAssistant';
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 
+import Dashboard from "./pages/Dashboard";
+import Students from "./pages/Students";
+import Courses from "./pages/Courses";
+import Faculty from "./pages/Faculty";
+import Rooms from "./pages/Rooms";
+import Exams from "./pages/Exams";
+import SeatPlan from "./pages/SeatPlan";
+import Invigilation from "./pages/Invigilation";
+import AIAssistant from "./pages/AIAssistant";
 
 function ProtectedRoute({ children }) {
+  const token = localStorage.getItem("token");
 
-  const token = sessionStorage.getItem('token');
-  const session = sessionStorage.getItem('examease_session');
-
-  if (!token || session !== 'active') {
-    sessionStorage.clear();
-
+  if (!token) {
     return <Navigate to="/login" replace />;
   }
 
   return children;
 }
 
-
 function App() {
-
   return (
     <Router>
-
       <Routes>
 
-        {/* LOGIN */}
-
+        {/* LOGIN / REGISTER */}
         <Route element={<AuthLayout />}>
-
-          <Route
-            path="/login"
-            element={<Login />}
-          />
-          <Route element={<AuthLayout />}>
-
-    <Route
-        path="/login"
-        element={<Login />}
-    />
-
-    <Route
-        path="/register"
-        element={<Register />}
-    />
-
-</Route>
-
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
         </Route>
 
-
-        {/* PROTECTED ADMIN AREA */}
-
+        {/* ADMIN AREA */}
         <Route
           path="/admin"
           element={
@@ -78,11 +51,7 @@ function App() {
             </ProtectedRoute>
           }
         >
-
-          <Route
-            index
-            element={<Dashboard />}
-          />
+          <Route index element={<Dashboard />} />
 
           <Route
             path="students"
@@ -123,25 +92,20 @@ function App() {
             path="ai-assistant"
             element={<AIAssistant />}
           />
-
         </Route>
 
-
         {/* HOME */}
-
         <Route
           path="/"
           element={
             <Navigate
-              to="/admin"
+              to="/login"
               replace
             />
           }
         />
 
-
-        {/* UNKNOWN URL */}
-
+        {/* ANY UNKNOWN URL */}
         <Route
           path="*"
           element={
@@ -153,7 +117,6 @@ function App() {
         />
 
       </Routes>
-
     </Router>
   );
 }

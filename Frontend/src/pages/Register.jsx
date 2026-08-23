@@ -114,63 +114,40 @@ export default function Register() {
 
 
         try {
-            const response = await fetch(
-                const response = await fetch(
-    "https://examease-backend-r8s4.onrender.com/api/auth/register",
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body: JSON.stringify({
-                        ...formData,
-                        email
-                    })
-                }
-            );
-
-
-            const data =
-                await response.json();
-
-
-            if (!response.ok) {
-                alert(
-                    data.message ||
-                        "Registration failed."
-                );
-                return;
-            }
-
-
-            alert(
-                "Account created successfully! You can now sign in."
-            );
-
-
-            navigate("/login", {
-                replace: true
-            });
-
-        } catch (error) {
-
-            console.error(
-                "Registration error:",
-                error
-            );
-
-            alert(
-                "Cannot connect to server. Make sure backend is running on port 5000."
-            );
-
-        } finally {
-
-            setLoading(false);
-
+    const response = await fetch(
+        "https://examease-backend-r8s4.onrender.com/api/auth/register",
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                ...formData,
+                email
+            })
         }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        alert(data.message || "Registration failed.");
+        return;
+    }
+
+    alert("Account created successfully! You can now sign in.");
+
+    navigate("/login", {
+        replace: true
+    });
+
+} catch (error) {
+    console.error("Registration error:", error);
+
+    alert("Cannot connect to server.");
+} finally {
+    setLoading(false);
+}
     };
 
 

@@ -10,17 +10,8 @@ const app = express();
 app.use(
     cors({
         origin: "*",
-        methods: [
-            "GET",
-            "POST",
-            "PUT",
-            "DELETE",
-            "OPTIONS"
-        ],
-        allowedHeaders: [
-            "Content-Type",
-            "Authorization"
-        ]
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"]
     })
 );
 
@@ -31,12 +22,6 @@ app.get("/", (req, res) => {
         message: "ExamEase Backend is Running!"
     });
 });
-
-app.use("/api/auth", authRoutes);
-
-// ================================
-// CREATE USERS TABLE IF NOT EXISTS
-// ================================
 
 const createUsersTable = `
     CREATE TABLE IF NOT EXISTS users (
@@ -54,19 +39,18 @@ const createUsersTable = `
 
 db.query(createUsersTable, (err) => {
     if (err) {
-        console.error(
-            "Users table creation failed:",
-            err.message
-        );
-    } else {
-        console.log("Users table is ready!");
+        console.error("Users table creation failed:", err.message);
+        return;
     }
-});
 
-const PORT = process.env.PORT || 5000;
+    console.log("Users table is ready!");
 
-app.listen(PORT, "0.0.0.0", () => {
-    console.log(
-        `ExamEase server running on port ${PORT}`
-    );
+    // Only enable API routes after table is ready
+    app.use("/api/auth", authRoutes);
+
+    const PORT = process.env.PORT || 5000;
+
+    app.listen(PORT, "0.0.0.0", () => {
+        console.log(`ExamEase server running on port ${PORT}`);
+    });
 });

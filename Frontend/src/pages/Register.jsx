@@ -37,118 +37,134 @@ export default function Register() {
 
 
     const handleRegister = async (e) => {
-        e.preventDefault();
+    e.preventDefault();
 
-        
+    const email = formData.email.trim().toLowerCase();
 
-        const email =
-            formData.email.trim().toLowerCase();
-
-        if (
-            !email.endsWith(
-                "@eastdelta.edu.bd"
-            )
-        ) {
-            alert(
-                "Please use your East Delta University email."
-            );
-            return;
-        }
-
-
-        if (
-            formData.role === "student" &&
-            !/^\d{9}@eastdelta\.edu\.bd$/i.test(
-                email
-            )
-        ) {
-            alert(
-                "Student email must contain exactly 9 digits before @eastdelta.edu.bd."
-            );
-            return;
-        }
-
-
-       
-        if (
-            formData.role === "faculty" &&
-            !/^[a-z]+(?:[._-][a-z]+)+@eastdelta\.edu\.bd$/i.test(
-                email
-            )
-        ) {
-            alert(
-                "Please enter a valid faculty email. Example: jahidul.h@eastdelta.edu.bd"
-            );
-            return;
-        }
-
-
-        if (
-            formData.password !==
-            formData.confirm_password
-        ) {
-            alert(
-                "Passwords do not match."
-            );
-            return;
-        }
-
-
-        if (formData.password.length < 6) {
-            alert(
-                "Password must be at least 6 characters long."
-            );
-            return;
-        }
-
-
-        if (!formData.role) {
-            alert(
-                "Please select your account type."
-            );
-            return;
-        }
-
-
-        setLoading(true);
-
-
-        try {
-    const response = await fetch(
-        "https://examease-backend-r8s4.onrender.com/api/auth/register",
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                ...formData,
-                email
-            })
-        }
-    );
-
-    const data = await response.json();
-
-    if (!response.ok) {
-        alert(data.message || "Registration failed.");
+    if (!email.endsWith("@eastdelta.edu.bd")) {
+        alert("Please use your East Delta University email.");
         return;
     }
 
-    alert("Account created successfully! You can now sign in.");
+    if (
+        formData.role === "student" &&
+        !/^\d{9}@eastdelta\.edu\.bd$/i.test(email)
+    ) {
+        alert(
+            "Student email must contain exactly 9 digits before @eastdelta.edu.bd."
+        );
+        return;
+    }
 
-    navigate("/login", {
-        replace: true
-    });
+    if (
+        formData.role === "faculty" &&
+        !/^[a-z]+(?:[._-][a-z]+)+@eastdelta\.edu\.bd$/i.test(email)
+    ) {
+        alert(
+            "Please enter a valid faculty email. Example: jahidul.h@eastdelta.edu.bd"
+        );
+        return;
+    }
 
-} catch (error) {
-    console.error("Registration error:", error);
+    if (formData.password !== formData.confirm_password) {
+        alert("Passwords do not match.");
+        return;
+    }
 
-    alert("Cannot connect to server.");
-} finally {
-    setLoading(false);
-}
-    };
+    if (formData.password.length < 6) {
+        alert("Password must be at least 6 characters long.");
+        return;
+    }
+
+    if (!formData.role) {
+        alert("Please select your account type.");
+        return;
+    }
+
+    setLoading(true);
+
+    try {
+        const response = await fetch(
+            "https://examease-backend-r8s4.onrender.com/api/auth/register",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    full_name: formData.full_name,
+                    email: email,
+                    password: formData.password,
+                    confirm_password:
+                        formData.confirm_password,
+                    role: formData.role,
+                    department: formData.department,
+                    designation:
+                        formData.designation,
+                    phone: formData.phone
+                })
+            }
+        );
+
+        const text = await response.text();
+
+        console.log(
+            "REGISTER STATUS:",
+            response.status
+        );
+
+        console.log(
+            "REGISTER RESPONSE:",
+            text
+        );
+
+        let data;
+
+        try {
+            data = JSON.parse(text);
+        } catch {
+            data = {
+                message:
+                    text ||
+                    "Server returned an invalid response."
+            };
+        }
+
+        if (!response.ok) {
+            alert(
+                `Error ${response.status}: ${
+                    data.message ||
+                    "Registration failed."
+                }`
+            );
+            return;
+        }
+
+        alert(
+            data.message ||
+            "Account created successfully! You can now sign in."
+        );
+
+        navigate("/login", {
+            replace: true
+        });
+
+    } catch (error) {
+
+        console.error(
+            "FETCH ERROR:",
+            error
+        );
+
+        alert(
+            "Cannot connect to the ExamEase backend.\n\n" +
+            error.message
+        );
+
+    } finally {
+        setLoading(false);
+    }
+};
 
 
     return (

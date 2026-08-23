@@ -2,19 +2,18 @@ const db = require("../config/db");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
-
-
 const UNIVERSITY_DOMAIN = "@eastdelta.edu.bd";
 
-
-const STUDENT_EMAIL_REGEX = /^\d{9}@eastdelta\.edu\.bd$/i;
-
+const STUDENT_EMAIL_REGEX =
+    /^\d{9}@eastdelta\.edu\.bd$/i;
 
 const FACULTY_EMAIL_REGEX =
     /^[a-z]+(?:[._-][a-z]+)+@eastdelta\.edu\.bd$/i;
 
 
-
+// =========================
+// REGISTER
+// =========================
 
 const register = async (req, res) => {
     try {
@@ -29,8 +28,7 @@ const register = async (req, res) => {
             phone
         } = req.body;
 
-       
-
+        // Required fields
         if (
             !full_name ||
             !email ||
@@ -46,12 +44,10 @@ const register = async (req, res) => {
             });
         }
 
-        
+        const cleanEmail =
+            email.trim().toLowerCase();
 
-        const cleanEmail = email.trim().toLowerCase();
-
-      
-
+        // Password match
         if (password !== confirm_password) {
             return res.status(400).json({
                 success: false,
@@ -59,18 +55,23 @@ const register = async (req, res) => {
             });
         }
 
-       
-
-        if (role !== "student" && role !== "faculty") {
+        // Role validation
+        if (
+            role !== "student" &&
+            role !== "faculty"
+        ) {
             return res.status(400).json({
                 success: false,
                 message: "Invalid account type."
             });
         }
 
-      
-
-        if (!cleanEmail.endsWith(UNIVERSITY_DOMAIN)) {
+        // University email
+        if (
+            !cleanEmail.endsWith(
+                UNIVERSITY_DOMAIN
+            )
+        ) {
             return res.status(400).json({
                 success: false,
                 message:
@@ -78,9 +79,11 @@ const register = async (req, res) => {
             });
         }
 
-      
-
-        if (role === "student" && !STUDENT_EMAIL_REGEX.test(cleanEmail)) {
+        // Student email
+        if (
+            role === "student" &&
+            !STUDENT_EMAIL_REGEX.test(cleanEmail)
+        ) {
             return res.status(400).json({
                 success: false,
                 message:
@@ -88,7 +91,11 @@ const register = async (req, res) => {
             });
         }
 
-        if (role === "faculty" && !FACULTY_EMAIL_REGEX.test(cleanEmail)) {
+        // Faculty email
+        if (
+            role === "faculty" &&
+            !FACULTY_EMAIL_REGEX.test(cleanEmail)
+        ) {
             return res.status(400).json({
                 success: false,
                 message:
@@ -96,17 +103,16 @@ const register = async (req, res) => {
             });
         }
 
-     
-
+        // Password length
         if (password.length < 6) {
             return res.status(400).json({
                 success: false,
-                message: "Password must be at least 6 characters long."
+                message:
+                    "Password must be at least 6 characters long."
             });
         }
 
-
-
+        // Check existing email
         const checkEmail =
             "SELECT user_id FROM users WHERE email = ?";
 
@@ -114,76 +120,117 @@ const register = async (req, res) => {
             checkEmail,
             [cleanEmail],
             async (err, results) => {
+
                 if (err) {
+                    console.error(
+                        "CHECK EMAIL DATABASE ERROR:",
+                        err.message
+                    );
+
                     return res.status(500).json({
                         success: false,
-                        message: err.message,
-                        
+                        message:
+                            "Database error while checking email.",
+                        error: err.message
                     });
                 }
 
                 if (results.length > 0) {
                     return res.status(409).json({
                         success: false,
-                        message: "This university email is already registered."
+                        message:
+                            "This university email is already registered."
                     });
                 }
 
-              
+                try {
+                    // Hash password
+                    const hashedPassword =
+                        await bcrypt.hash(
+                            password,
+                            10
+                        );
 
-                const hashedPassword = await bcrypt.hash(
-                    password,
-                    10
-                );
+                    // Insert user
+                    const sql = `
+                        INSERT INTO users
+                        (
+                            full_name,
+                            email,
+                            password,
+                            role,
+                            designation,
+                            department,
+                            phone
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    `;
 
-                
+                    db.query(
+                        sql,
+                        [
+                            full_name.trim(),
+                            cleanEmail,
+                            hashedPassword,
+                            role,
+                            designation
+                                ? designation.trim()
+                                : null,
+                            department.trim(),
+                            phone
+                                ? phone.trim()
+                                : null
+                        ],
+                        (err, result) => {
 
-                const sql = `
-                    INSERT INTO users
-                    (
-                        full_name,
-                        email,
-                        password,
-                        role,
-                        designation,
-                        department,
-                        phone
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                `;
+                            if (err) {
+                                console.error(
+                                    "INSERT DATABASE ERROR:",
+                                    err.message
+                                );
 
-                db.query(
-                    sql,
-                    [
-                        full_name.trim(),
-                        cleanEmail,
-                        hashedPassword,
-                        role,
-                        designation || null,
-                        department.trim(),
-                        phone || null
-                    ],
-                    (err, result) => {
-                        if (err) {
-                            return res.status(500).json({
-                                success: false,
-                                message: "Failed to create account.",
-                                error: err.message
+                                return res.status(500).json({
+                                    success: false,
+                                    message:
+                                        "Database error while creating account.",
+                                    error: err.message
+                                });
+                            }
+
+                            return res.status(201).json({
+                                success: true,
+                                message:
+                                    "Account created successfully. You can now sign in.",
+                                user_id:
+                                    result.insertId
                             });
                         }
+                    );
 
-                        return res.status(201).json({
-                            success: true,
-                            message:
-                                "Account created successfully. You can now sign in.",
-                            user_id: result.insertId
-                        });
-                    }
-                );
+                } catch (hashError) {
+
+                    console.error(
+                        "PASSWORD HASH ERROR:",
+                        hashError.message
+                    );
+
+                    return res.status(500).json({
+                        success: false,
+                        message:
+                            "Password processing failed.",
+                        error:
+                            hashError.message
+                    });
+                }
             }
         );
+
     } catch (error) {
-        console.error("Registration error:", error);
+
+        console.error(
+            "REGISTRATION ERROR:",
+            error
+        );
 
         return res.status(500).json({
             success: false,
@@ -194,23 +241,33 @@ const register = async (req, res) => {
 };
 
 
-
+// =========================
+// LOGIN
+// =========================
 
 const login = (req, res) => {
-    const { email, password } = req.body;
+
+    const {
+        email,
+        password
+    } = req.body;
 
     if (!email || !password) {
         return res.status(400).json({
             success: false,
-            message: "Email and password are required."
+            message:
+                "Email and password are required."
         });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail =
+        email.trim().toLowerCase();
 
-    
-
-    if (!cleanEmail.endsWith(UNIVERSITY_DOMAIN)) {
+    if (
+        !cleanEmail.endsWith(
+            UNIVERSITY_DOMAIN
+        )
+    ) {
         return res.status(401).json({
             success: false,
             message:
@@ -225,11 +282,19 @@ const login = (req, res) => {
         sql,
         [cleanEmail],
         async (err, results) => {
+
             if (err) {
+                console.error(
+                    "LOGIN DATABASE ERROR:",
+                    err.message
+                );
+
                 return res.status(500).json({
                     success: false,
-                    message: "Database error.",
-                    error: err.message
+                    message:
+                        "Database error.",
+                    error:
+                        err.message
                 });
             }
 
@@ -243,8 +308,6 @@ const login = (req, res) => {
 
             const user = results[0];
 
-           
-
             if (
                 user.role !== "student" &&
                 user.role !== "faculty"
@@ -256,193 +319,255 @@ const login = (req, res) => {
                 });
             }
 
-            
+            try {
 
-            const passwordMatch = await bcrypt.compare(
-                password,
-                user.password
-            );
+                const passwordMatch =
+                    await bcrypt.compare(
+                        password,
+                        user.password
+                    );
 
-            if (!passwordMatch) {
-                return res.status(401).json({
+                if (!passwordMatch) {
+                    return res.status(401).json({
+                        success: false,
+                        message:
+                            "Invalid email or password."
+                    });
+                }
+
+                const token =
+                    jwt.sign(
+                        {
+                            user_id:
+                                user.user_id,
+                            email:
+                                user.email,
+                            role:
+                                user.role,
+                            designation:
+                                user.designation,
+                            department:
+                                user.department
+                        },
+                        process.env.JWT_SECRET,
+                        {
+                            expiresIn: "1d"
+                        }
+                    );
+
+                return res.json({
+                    success: true,
+                    message:
+                        "Login successful.",
+                    token: token,
+                    user: {
+                        user_id:
+                            user.user_id,
+                        full_name:
+                            user.full_name,
+                        email:
+                            user.email,
+                        role:
+                            user.role,
+                        designation:
+                            user.designation,
+                        department:
+                            user.department,
+                        phone:
+                            user.phone
+                    }
+                });
+
+            } catch (passwordError) {
+
+                return res.status(500).json({
                     success: false,
-                    message: "Invalid email or password."
+                    message:
+                        "Password verification failed.",
+                    error:
+                        passwordError.message
                 });
             }
-
-            
-
-            const token = jwt.sign(
-                {
-                    user_id: user.user_id,
-                    email: user.email,
-                    role: user.role,
-                    designation: user.designation,
-                    department: user.department
-                },
-                process.env.JWT_SECRET,
-                {
-                    expiresIn: "1d"
-                }
-            );
-
-            return res.json({
-                success: true,
-                message: "Login successful.",
-                token: token,
-
-                user: {
-                    user_id: user.user_id,
-                    full_name: user.full_name,
-                    email: user.email,
-                    role: user.role,
-                    designation: user.designation,
-                    department: user.department,
-                    phone: user.phone
-                }
-            });
         }
     );
 };
 
 
+// =========================
+// CHANGE ADMIN CREDENTIALS
+// =========================
 
+const changeAdminCredentials =
+    async (req, res) => {
 
-const changeAdminCredentials = async (req, res) => {
-    try {
-        const {
-            oldEmail,
-            newEmail,
-            newPassword
-        } = req.body;
+        try {
 
-        if (!oldEmail || !newEmail || !newPassword) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Old email, new email and new password are required."
-            });
-        }
+            const {
+                oldEmail,
+                newEmail,
+                newPassword
+            } = req.body;
 
-        const cleanOldEmail =
-            oldEmail.trim().toLowerCase();
+            if (
+                !oldEmail ||
+                !newEmail ||
+                !newPassword
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Old email, new email and new password are required."
+                });
+            }
 
-        const cleanNewEmail =
-            newEmail.trim().toLowerCase();
+            const cleanOldEmail =
+                oldEmail
+                    .trim()
+                    .toLowerCase();
 
-       
-        if (!cleanNewEmail.endsWith(UNIVERSITY_DOMAIN)) {
-            return res.status(400).json({
-                success: false,
-                message:
-                    "New email must be an East Delta University email."
-            });
-        }
+            const cleanNewEmail =
+                newEmail
+                    .trim()
+                    .toLowerCase();
 
-        const findUser =
-            "SELECT * FROM users WHERE email = ?";
+            if (
+                !cleanNewEmail.endsWith(
+                    UNIVERSITY_DOMAIN
+                )
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "New email must be an East Delta University email."
+                });
+            }
 
-        db.query(
-            findUser,
-            [cleanOldEmail],
-            async (err, results) => {
-                if (err) {
-                    return res.status(500).json({
-                        success: false,
-                        message: "Database error.",
-                        error: err.message
-                    });
-                }
+            const findUser =
+                "SELECT * FROM users WHERE email = ?";
 
-                if (results.length === 0) {
-                    return res.status(404).json({
-                        success: false,
-                        message: "Old email not found."
-                    });
-                }
+            db.query(
+                findUser,
+                [cleanOldEmail],
+                async (err, results) => {
 
-                const checkNewEmail = `
-                    SELECT user_id
-                    FROM users
-                    WHERE email = ?
-                    AND email != ?
-                `;
+                    if (err) {
+                        return res.status(500).json({
+                            success: false,
+                            message:
+                                "Database error.",
+                            error:
+                                err.message
+                        });
+                    }
 
-                db.query(
-                    checkNewEmail,
-                    [cleanNewEmail, cleanOldEmail],
-                    async (err, existingUsers) => {
-                        if (err) {
-                            return res.status(500).json({
-                                success: false,
-                                message: "Database error.",
-                                error: err.message
-                            });
-                        }
+                    if (results.length === 0) {
+                        return res.status(404).json({
+                            success: false,
+                            message:
+                                "Old email not found."
+                        });
+                    }
 
-                        if (existingUsers.length > 0) {
-                            return res.status(409).json({
-                                success: false,
-                                message:
-                                    "New email already exists."
-                            });
-                        }
+                    const checkNewEmail = `
+                        SELECT user_id
+                        FROM users
+                        WHERE email = ?
+                        AND email != ?
+                    `;
 
-                        const hashedPassword =
-                            await bcrypt.hash(
-                                newPassword,
-                                10
-                            );
+                    db.query(
+                        checkNewEmail,
+                        [
+                            cleanNewEmail,
+                            cleanOldEmail
+                        ],
+                        async (
+                            err,
+                            existingUsers
+                        ) => {
 
-                        const updateSQL = `
-                            UPDATE users
-                            SET
-                                email = ?,
-                                password = ?
-                            WHERE email = ?
-                        `;
-
-                        db.query(
-                            updateSQL,
-                            [
-                                cleanNewEmail,
-                                hashedPassword,
-                                cleanOldEmail
-                            ],
-                            (err) => {
-                                if (err) {
-                                    return res.status(500).json({
-                                        success: false,
-                                        message:
-                                            "Failed to update credentials.",
-                                        error: err.message
-                                    });
-                                }
-
-                                return res.json({
-                                    success: true,
+                            if (err) {
+                                return res.status(500).json({
+                                    success: false,
                                     message:
-                                        "Credentials changed successfully."
+                                        "Database error.",
+                                    error:
+                                        err.message
                                 });
                             }
-                        );
-                    }
-                );
-            }
-        );
-    } catch (error) {
-        console.error(
-            "Credential update error:",
-            error
-        );
 
-        return res.status(500).json({
-            success: false,
-            message: "Server error.",
-            error: error.message
-        });
-    }
-};
+                            if (
+                                existingUsers.length >
+                                0
+                            ) {
+                                return res.status(409).json({
+                                    success: false,
+                                    message:
+                                        "New email already exists."
+                                });
+                            }
+
+                            const hashedPassword =
+                                await bcrypt.hash(
+                                    newPassword,
+                                    10
+                                );
+
+                            const updateSQL = `
+                                UPDATE users
+                                SET
+                                    email = ?,
+                                    password = ?
+                                WHERE email = ?
+                            `;
+
+                            db.query(
+                                updateSQL,
+                                [
+                                    cleanNewEmail,
+                                    hashedPassword,
+                                    cleanOldEmail
+                                ],
+                                (err) => {
+
+                                    if (err) {
+                                        return res.status(500).json({
+                                            success: false,
+                                            message:
+                                                "Failed to update credentials.",
+                                            error:
+                                                err.message
+                                        });
+                                    }
+
+                                    return res.json({
+                                        success: true,
+                                        message:
+                                            "Credentials changed successfully."
+                                    });
+                                }
+                            );
+                        }
+                    );
+                }
+            );
+
+        } catch (error) {
+
+            console.error(
+                "Credential update error:",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                message:
+                    "Server error.",
+                error:
+                    error.message
+            });
+        }
+    };
 
 
 module.exports = {

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -10,8 +11,7 @@ import {
     ArrowLeft
 } from "lucide-react";
 
-const API_URL =
-    "https://examease-backend-r8s4.onrender.com";
+const API_URL = "https://examease-backend-r8s4.onrender.com";
 
 export default function Register() {
     const navigate = useNavigate();
@@ -44,9 +44,7 @@ export default function Register() {
         const email = formData.email.trim().toLowerCase();
 
         if (!email.endsWith("@eastdelta.edu.bd")) {
-            alert(
-                "Please use your East Delta University email."
-            );
+            alert("Please use your East Delta University email.");
             return;
         }
 
@@ -62,9 +60,7 @@ export default function Register() {
 
         if (
             formData.role === "faculty" &&
-            !/^[a-z]+(?:[._-][a-z]+)+@eastdelta\.edu\.bd$/i.test(
-                email
-            )
+            !/^[a-z]+(?:[._-][a-z]+)+@eastdelta\.edu\.bd$/i.test(email)
         ) {
             alert(
                 "Please enter a valid faculty email. Example: jahidul.h@eastdelta.edu.bd"
@@ -78,9 +74,7 @@ export default function Register() {
         }
 
         if (formData.password.length < 6) {
-            alert(
-                "Password must be at least 6 characters long."
-            );
+            alert("Password must be at least 6 characters long.");
             return;
         }
 
@@ -92,36 +86,30 @@ export default function Register() {
         setLoading(true);
 
         try {
-            const response = await fetch(
-                `${API_URL}/api/auth/register`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        full_name: formData.full_name.trim(),
-                        email,
-                        password: formData.password,
-                        confirm_password:
-                            formData.confirm_password,
-                        role: formData.role,
-                        department:
-                            formData.department.trim(),
-                        designation:
-                            formData.designation.trim(),
-                        phone: formData.phone.trim()
-                    })
-                }
-            );
+            const response = await fetch(`${API_URL}/api/auth/register`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    full_name: formData.full_name.trim(),
+                    email,
+                    password: formData.password,
+                    confirm_password: formData.confirm_password,
+                    role: formData.role,
+                    department: formData.department.trim(),
+                    designation: formData.designation.trim(),
+                    phone: formData.phone.trim()
+                })
+            });
 
             const data = await response.json();
 
             if (!response.ok) {
                 alert(
                     data.message ||
-                        data.error ||
-                        "Registration failed."
+                    data.error ||
+                    "Registration failed."
                 );
                 return;
             }
@@ -134,10 +122,7 @@ export default function Register() {
                 replace: true
             });
         } catch (error) {
-            console.error(
-                "Registration error:",
-                error
-            );
+            console.error("Registration error:", error);
 
             alert(
                 "Cannot connect to ExamEase server."

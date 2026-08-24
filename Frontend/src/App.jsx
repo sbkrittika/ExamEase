@@ -19,8 +19,6 @@ import Rooms from "./pages/Rooms";
 import Exams from "./pages/Exams";
 import SeatPlan from "./pages/SeatPlan";
 import Invigilation from "./pages/Invigilation";
-import AIAssistant from "./pages/AIAssistant";
-
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("token");
 
@@ -88,10 +86,6 @@ function App() {
             element={<Invigilation />}
           />
 
-          <Route
-            path="ai-assistant"
-            element={<AIAssistant />}
-          />
         </Route>
 
         {/* HOME */}

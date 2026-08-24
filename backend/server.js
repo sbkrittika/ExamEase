@@ -39,57 +39,39 @@ const createUsersTable = `
     )
 `;
 
-const createStudentsTable = `
-    CREATE TABLE IF NOT EXISTS students (
-        student_id VARCHAR(64) PRIMARY KEY,
-        name VARCHAR(255)
-    )
-`;
-
-const createCoursesTable = `
-    CREATE TABLE IF NOT EXISTS courses (
-        course_code VARCHAR(64) PRIMARY KEY
-    )
-`;
-
-const createStudentCourses = `
-    CREATE TABLE IF NOT EXISTS student_courses (
-        student_id VARCHAR(64),
-        course_code VARCHAR(64),
-        PRIMARY KEY (student_id, course_code),
-        FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
-        FOREIGN KEY (course_code) REFERENCES courses(course_code) ON DELETE CASCADE
-    )
-`;
-
 const createExamsTable = `
     CREATE TABLE IF NOT EXISTS exams (
         exam_id INT AUTO_INCREMENT PRIMARY KEY,
-        exam_date DATE,
-        exam_time TIME,
+        exam_date DATE NOT NULL,
+        start_time TIME NOT NULL,
+        end_time TIME NOT NULL,
+        exam_type VARCHAR(30),
+        created_by INT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
 `;
 
-const createExamAllocations = `
+const createAllocationTable = `
     CREATE TABLE IF NOT EXISTS exam_allocations (
         id INT AUTO_INCREMENT PRIMARY KEY,
         exam_id INT,
         room_id VARCHAR(128),
         student_id VARCHAR(64),
-        FOREIGN KEY (exam_id) REFERENCES exams(exam_id) ON DELETE CASCADE
+        course_code VARCHAR(64),
+        KEY exam_id_idx (exam_id)
     )
 `;
 
-const tables = [createUsersTable, createStudentsTable, createCoursesTable, createStudentCourses, createExamsTable, createExamAllocations];
+const tables = [createUsersTable, createExamsTable, createAllocationTable];
 
 (function createAll(i) {
     if (i >= tables.length) {
         console.log('All tables ready');
-        // mount routes after tables ready
         app.use('/api/auth', authRoutes);
 
-        // mount exam routes
+        const courseRoutes = require('./routes/courseRoutes');
+        app.use('/api/courses', courseRoutes);
+
         const examRoutes = require('./routes/examRoutes');
         app.use('/api/exams', examRoutes);
 

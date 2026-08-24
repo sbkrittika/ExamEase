@@ -11,7 +11,7 @@ import {
     ArrowLeft
 } from "lucide-react";
 
-const API_URL = "https://examease-backend-r8s4.onrender.com";
+const API_URL = import.meta.env.VITE_API_URL || "https://examease-backend-r8s4.onrender.com";
 
 export default function Register() {
     const navigate = useNavigate();

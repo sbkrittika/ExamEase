@@ -1,83 +1,144 @@
-import { useState } from 'react';
-import { Search, Plus, Edit2, Trash2 } from 'lucide-react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { Search, Plus, Edit2, Trash2, Upload, X } from 'lucide-react';
+import { importStudentListFromZip } from '../utils/examImport';
+
+const STORAGE_KEY = 'examease-courses';
 
 export default function Courses() {
+  const fileInputRef = useRef(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [courses, setCourses] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [status, setStatus] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [form, setForm] = useState({ code: '', title: '', credit: '3', department: 'CSE' });
 
-  const courses = [
-    { code: 'CSE 311', title: 'Database Systems', credit: 3, department: 'CSE' },
-    { code: 'MTH 201', title: 'Linear Algebra', credit: 3, department: 'Mathematics' },
-    { code: 'PHY 101', title: 'Mechanics', credit: 4, department: 'Physics' },
-    { code: 'EEE 201', title: 'Electrical Circuits', credit: 3, department: 'EEE' },
-    { code: 'BBA 101', title: 'Principles of Management', credit: 3, department: 'BBA' },
-  ];
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        setCourses(JSON.parse(saved));
+      } catch {
+        setCourses([]);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(courses));
+  }, [courses]);
+
+  const filtered = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    return courses.filter((course) => `${course.code} ${course.title} ${course.department}`.toLowerCase().includes(q));
+  }, [searchTerm, courses]);
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    if (!form.code || !form.title) {
+      alert('Course code and title are required.');
+      return;
+    }
+
+    const newCourse = {
+      code: form.code.trim(),
+      title: form.title.trim(),
+      credit: Number(form.credit) || 3,
+      department: form.department,
+    };
+
+    setCourses((prev) => {
+      const index = prev.findIndex((item) => item.code === newCourse.code);
+      if (index >= 0) {
+        const next = [...prev];
+        next[index] = newCourse;
+        return next;
+      }
+      return [newCourse, ...prev];
+    });
+
+    setForm({ code: '', title: '', credit: '3', department: 'CSE' });
+    setShowForm(false);
+    setStatus('Course added successfully.');
+  };
+
+  const handleImportZip = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setStatus('');
+
+    try {
+      const result = await importStudentListFromZip(file);
+      if (!result.courses.length) {
+        throw new Error('No course information found in the ZIP.');
+      }
+
+      setCourses(result.courses);
+      setStatus(`Imported ${result.courses.length} course from ${file.name}.`);
+    } catch (error) {
+      alert(error.message || 'Unable to import the ZIP.');
+      setStatus('');
+    } finally {
+      setUploading(false);
+      event.target.value = '';
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Courses Management</h1>
-          <p className="text-slate-500 mt-1">Manage university courses, credits, and departments.</p>
+          <p className="text-slate-500 mt-1">Import courses from the ZIP file or add them manually.</p>
         </div>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm shadow-blue-600/20 flex items-center space-x-2">
-          <Plus size={18} />
-          <span>Add Course</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm shadow-emerald-600/20 flex items-center space-x-2"><Upload size={18} /><span>{uploading ? 'Importing...' : 'Import ZIP'}</span></button>
+          <input ref={fileInputRef} type="file" accept=".zip" className="hidden" onChange={handleImportZip} />
+          <button type="button" onClick={() => setShowForm((prev) => !prev)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm shadow-blue-600/20 flex items-center space-x-2"><Plus size={18} /><span>{showForm ? 'Close' : 'Add Course'}</span></button>
+        </div>
       </div>
+
+      {status && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{status}</div>}
+
+      {showForm && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+          <div className="flex items-center justify-between mb-4"><h2 className="font-semibold text-slate-900">Add Course</h2><button type="button" onClick={() => setShowForm(false)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"><X size={18} /></button></div>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div><label className="block text-sm font-medium text-slate-700 mb-1">Course Code</label><input name="code" value={form.code} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="CSE 311" /></div>
+            <div><label className="block text-sm font-medium text-slate-700 mb-1">Course Title</label><input name="title" value={form.title} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Database Systems" /></div>
+            <div><label className="block text-sm font-medium text-slate-700 mb-1">Credit</label><select name="credit" value={form.credit} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div>
+            <div><label className="block text-sm font-medium text-slate-700 mb-1">Department</label><select name="department" value={form.department} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"><option value="CSE">CSE</option><option value="EEE">EEE</option><option value="BBA">BBA</option><option value="Physics">Physics</option><option value="Mathematics">Mathematics</option></select></div>
+            <div className="md:col-span-2 lg:col-span-4 flex justify-end gap-3 pt-2"><button type="button" onClick={() => setShowForm(false)} className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200">Cancel</button><button type="submit" className="px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">Save Course</button></div>
+          </form>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="relative w-full sm:w-96">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search size={18} className="text-slate-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search by course code or title..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-            />
-          </div>
+          <div className="relative w-full sm:w-96"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search size={18} className="text-slate-400" /></div><input type="text" placeholder="Search by course code or title..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none" /></div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                <th className="px-6 py-4">Course Code</th>
-                <th className="px-6 py-4">Course Title</th>
-                <th className="px-6 py-4">Credit</th>
-                <th className="px-6 py-4">Department</th>
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {courses.map((course) => (
-                <tr key={course.code} className="hover:bg-slate-50 transition-colors group">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900">{course.code}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{course.title}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{course.credit}.0</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
-                      {course.department}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                        <Edit2 size={16} />
-                      </button>
-                      <button className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {courses.length === 0 ? (
+          <div className="p-10 text-center text-slate-500">No courses loaded yet. Upload the ZIP file or add a course manually.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead><tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-semibold"><th className="px-6 py-4">Course Code</th><th className="px-6 py-4">Course Title</th><th className="px-6 py-4">Credit</th><th className="px-6 py-4">Department</th><th className="px-6 py-4 text-right">Actions</th></tr></thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.map((course) => (
+                  <tr key={course.code} className="hover:bg-slate-50 transition-colors group"><td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900">{course.code}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{course.title}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{course.credit}.0</td><td className="px-6 py-4 whitespace-nowrap"><span className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">{course.department}</span></td><td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><div className="flex items-center justify-end space-x-2"><button type="button" className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button><button type="button" onClick={() => setCourses((prev) => prev.filter((item) => item.code !== course.code))} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button></div></td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

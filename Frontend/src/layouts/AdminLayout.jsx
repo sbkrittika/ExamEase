@@ -14,7 +14,6 @@ import {
   FileText,
   Grid,
   UserCheck,
-  Bot,
   LogOut,
   Menu,
   X
@@ -81,12 +80,6 @@ export default function AdminLayout() {
       path: '/admin/invigilation',
       icon: UserCheck
     },
-
-    {
-      name: 'AI Assistant',
-      path: '/admin/ai-assistant',
-      icon: Bot
-    }
 
   ];
 
@@ -158,7 +151,7 @@ export default function AdminLayout() {
 
             <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
 
-              <Bot
+              <School
                 size={20}
                 className="text-white"
               />

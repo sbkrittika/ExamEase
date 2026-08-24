@@ -1,0 +1,14 @@
+{
+  "name": "exam-allocator",
+  "version": "1.0.0",
+  "description": "Import student lists from a ZIP and allocate students into rooms respecting max courses per room.",
+  "main": "allocator.js",
+  "scripts": {
+    "import": "node importZip.js",
+    "demo": "node demoAllocate.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.10",
+    "xlsx": "^0.18.5"
+  }
+}

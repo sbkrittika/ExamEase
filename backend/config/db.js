@@ -6,9 +6,16 @@ const db = mysql.createConnection({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
+    // Set a reasonable connect timeout so requests fail fast if DB is unreachable
+    connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT_MS || '10000', 10),
     ssl: {
         rejectUnauthorized: false
     }
+});
+
+// Log and rethrow connection errors so API handlers don't hang indefinitely
+db.on('error', (err) => {
+    console.error('MySQL connection error (event):', err && err.message ? err.message : err);
 });
 
 db.connect((err) => {

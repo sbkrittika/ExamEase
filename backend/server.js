@@ -6,6 +6,8 @@ const db = require("./config/db");
 console.log("DB NAME FROM RENDER:", process.env.DB_NAME);
 console.log("DB HOST FROM RENDER:", process.env.DB_HOST);
 const authRoutes = require("./routes/authRoutes");
+const dataRoutes = require("./routes/dataRoutes");
+const courseRoutes = require("./routes/courseRoutes");
 
 const app = express();
 
@@ -88,6 +90,8 @@ const tables = [createUsersTable, createStudentsTable, createCoursesTable, creat
         console.log('All tables ready');
         // mount routes after tables ready
         app.use('/api/auth', authRoutes);
+        app.use('/api/data', dataRoutes);
+        app.use('/api/courses', courseRoutes);
 
         // mount exam routes
         const examRoutes = require('./routes/examRoutes');

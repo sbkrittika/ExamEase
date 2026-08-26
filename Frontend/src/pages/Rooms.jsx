@@ -1,16 +1,22 @@
-import { useState } from 'react';
-import { Search, Plus, Edit2, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Search } from 'lucide-react';
+
+const API_URL = 'https://examease-backend-r8s4.onrender.com';
 
 export default function Rooms() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [rooms, setRooms] = useState([]);
 
-  const rooms = [
-    { id: '1', building: 'Building A', roomNumber: '101', capacity: 40, type: 'Classroom', status: 'Available' },
-    { id: '2', building: 'Building A', roomNumber: '102', capacity: 40, type: 'Classroom', status: 'Available' },
-    { id: '3', building: 'Building B', roomNumber: '205', capacity: 120, type: 'Lecture Hall', status: 'Available' },
-    { id: '4', building: 'Building C', roomNumber: 'Lab 1', capacity: 30, type: 'Computer Lab', status: 'Maintenance' },
-    { id: '5', building: 'Building C', roomNumber: 'Lab 2', capacity: 30, type: 'Computer Lab', status: 'Available' },
-  ];
+  useEffect(() => {
+    fetch(`${API_URL}/api/data/rooms`)
+      .then((response) => response.json())
+      .then((data) => setRooms(data.rooms || []))
+      .catch(() => setRooms([]));
+  }, []);
+
+  const visibleRooms = rooms.filter((room) =>
+    `${room.room_number} ${room.building}`.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
@@ -19,10 +25,6 @@ export default function Rooms() {
           <h1 className="text-2xl font-bold text-slate-900">Room Management</h1>
           <p className="text-slate-500 mt-1">Manage university buildings, rooms, and their capacities.</p>
         </div>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm shadow-blue-600/20 flex items-center space-x-2">
-          <Plus size={18} />
-          <span>Add Room</span>
-        </button>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -54,12 +56,12 @@ export default function Rooms() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rooms.map((room) => (
-                <tr key={room.id} className="hover:bg-slate-50 transition-colors group">
+              {visibleRooms.map((room) => (
+                <tr key={room.room_id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{room.building}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{room.roomNumber}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{room.room_number}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{room.capacity} students</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{room.type}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">Exam room</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2.5 py-1 rounded-md text-xs font-medium border ${
                       room.status === 'Available' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'
@@ -67,16 +69,7 @@ export default function Rooms() {
                       {room.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                        <Edit2 size={16} />
-                      </button>
-                      <button className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-slate-400">Managed from university records</td>
                 </tr>
               ))}
             </tbody>

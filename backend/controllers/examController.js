@@ -13,8 +13,7 @@ const addExam = (req, res) => {
         total_students
     } = req.body;
 
-    if (
-        !exam_date ||
+    if (!exam_date ||
         !start_time ||
         !end_time ||
         !created_by ||
@@ -27,7 +26,7 @@ const addExam = (req, res) => {
         });
     }
 
-  
+
     const checkCourse = `
         SELECT course_code
         FROM courses
@@ -63,7 +62,7 @@ const addExam = (req, res) => {
                 });
             }
 
-      
+
             const examSQL = `
                 INSERT INTO exams
                 (exam_date, start_time, end_time, exam_type, created_by)
@@ -71,8 +70,7 @@ const addExam = (req, res) => {
             `;
 
             db.query(
-                examSQL,
-                [
+                examSQL, [
                     exam_date,
                     start_time,
                     end_time,
@@ -93,7 +91,7 @@ const addExam = (req, res) => {
 
                     const examId = examResult.insertId;
 
-                   
+
                     const examCourseSQL = `
                         INSERT INTO exam_courses
                         (exam_id, course_code, total_students)
@@ -101,8 +99,7 @@ const addExam = (req, res) => {
                     `;
 
                     db.query(
-                        examCourseSQL,
-                        [
+                        examCourseSQL, [
                             examId,
                             course_code,
                             total_students
@@ -198,7 +195,8 @@ function parseXlsxBuffer(buffer) {
     const data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
     function colVal(row, names) {
-        for (const n of names) if (row[n] !== undefined) return row[n];
+        for (const n of names)
+            if (row[n] !== undefined) return row[n];
         return '';
     }
 
@@ -210,14 +208,18 @@ function parseXlsxBuffer(buffer) {
 }
 
 const uploadZip = (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'zip file required (multipart/form-data field name = file)' });
+    if (!req.file) return res.status(400).json({ error: 'ZIP or XLSX file required (multipart/form-data field name = file)' });
     try {
-        const zip = new AdmZip(req.file.buffer);
-        const entries = zip.getEntries();
-        const xlsxEntry = entries.find(e => e.entryName.toLowerCase().endsWith('.xlsx'));
-        if (!xlsxEntry) return res.status(400).json({ error: 'no .xlsx file inside zip' });
+        let workbookBuffer = req.file.buffer;
+        if (!req.file.originalname.toLowerCase().endsWith('.xlsx')) {
+            const zip = new AdmZip(req.file.buffer);
+            const entries = zip.getEntries();
+            const xlsxEntry = entries.find(e => e.entryName.toLowerCase().endsWith('.xlsx'));
+            if (!xlsxEntry) return res.status(400).json({ error: 'no .xlsx file inside ZIP' });
+            workbookBuffer = xlsxEntry.getData();
+        }
 
-        const students = parseXlsxBuffer(xlsxEntry.getData());
+        const students = parseXlsxBuffer(workbookBuffer);
 
         // Insert students and courses into DB (upsert style)
         const insertStudent = `INSERT INTO students (student_id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name = VALUES(name)`;
@@ -229,7 +231,7 @@ const uploadZip = (req, res) => {
             conn.beginTransaction(transactionErr => {
                 if (transactionErr) return res.status(500).json({ error: transactionErr.message });
 
-                (async () => {
+                (async() => {
                     try {
                         for (const s of students) {
                             await new Promise((resolve, reject) => conn.query(insertStudent, [s.student_id, s.name || null], (e) => e ? reject(e) : resolve()));
@@ -257,13 +259,18 @@ const uploadZip = (req, res) => {
 
 const allocate = (req, res) => {
     // body: { exam_date, exam_time, roomIds: [], studentIds: [] }
-    const { exam_date, exam_time, roomIds, studentIds, maxCoursesPerRoom } = req.body;
+    const { exam_date, exam_time, roomIds, studentIds, course_code, desiredRoomId, maxCoursesPerRoom } = req.body;
     if (!exam_date || !exam_time || !Array.isArray(roomIds) || roomIds.length === 0) return res.status(400).json({ error: 'exam_date, exam_time and roomIds are required' });
 
     // fetch students either by provided ids or all students
-    const fetchSql = studentIds && studentIds.length ? `SELECT s.student_id, s.name, sc.course_code FROM students s LEFT JOIN student_courses sc ON s.student_id = sc.student_id WHERE s.student_id IN (?)` : `SELECT s.student_id, s.name, sc.course_code FROM students s LEFT JOIN student_courses sc ON s.student_id = sc.student_id`;
+    const studentFilter = studentIds && studentIds.length ? ' AND s.student_id IN (?)' : '';
+    const courseFilter = course_code ? ' AND sc.course_code = ?' : '';
+    const fetchSql = `SELECT s.student_id, s.name, sc.course_code FROM students s LEFT JOIN student_courses sc ON s.student_id = sc.student_id WHERE 1 = 1${studentFilter}${courseFilter}`;
+    const fetchParams = [];
+    if (studentIds && studentIds.length) fetchParams.push(studentIds);
+    if (course_code) fetchParams.push(course_code);
 
-    db.query(fetchSql, studentIds && studentIds.length ? [studentIds] : [], (err, rows) => {
+    db.query(fetchSql, fetchParams, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         // rows may contain multiple rows per student (one per course). Convert to per-student with course_code (if multiple courses choose first)
         const studentsMap = new Map();
@@ -273,7 +280,7 @@ const allocate = (req, res) => {
         }
         const students = Array.from(studentsMap.values());
 
-        const { allocations, warnings } = allocateStudents(students, roomIds, { maxCoursesPerRoom: maxCoursesPerRoom || 4 });
+        const { allocations, warnings } = allocateStudents(students, roomIds, { maxCoursesPerRoom: maxCoursesPerRoom || 4, preferredRoomId: desiredRoomId });
         if (!allocations) return res.status(400).json({ error: 'Allocation failed', warnings });
 
         // Save allocations in DB: exams and exam_allocations
@@ -291,7 +298,8 @@ const allocate = (req, res) => {
                         for (const s of allocations[roomId]) rowsToInsert.push([examId, roomId, s.student_id]);
                     }
                     if (rowsToInsert.length === 0) {
-                        conn.commit(() => { conn.release(); res.json({ allocations, warnings }); });
+                        conn.commit(() => { conn.release();
+                            res.json({ allocations, warnings }); });
                         return;
                     }
                     conn.query(insertAlloc, [rowsToInsert], (iaErr) => {

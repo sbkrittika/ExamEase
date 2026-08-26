@@ -190,7 +190,16 @@ const uploadZip = (req, res) => {
                         conn.commit((commitErr) => {
                             if (commitErr) return conn.rollback(() => res.status(500).json({ error: commitErr.message }));
                             conn.release();
-                            res.json({ imported: students.length });
+                            res.json({
+                                success: true,
+                                imported: students.length,
+                                students: students.map((student) => ({
+                                    student_id: student.student_id,
+                                    student_name: student.student_name,
+                                    course_code: student.course_code,
+                                    semester: student.semester || null
+                                }))
+                            });
                         });
                     } catch (ex) {
                         conn.rollback(() => {

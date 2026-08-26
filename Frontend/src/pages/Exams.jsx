@@ -1,5 +1,7 @@
-﻿import { useState } from 'react';
-import { Plus, Calendar, Clock, Edit2, Trash2, X } from 'lucide-react';
+﻿import { useRef, useState } from 'react';
+import { Plus, Calendar, Clock, Edit2, Trash2, X, UploadCloud } from 'lucide-react';
+
+const API_URL = import.meta.env.VITE_API_URL || 'https://examease-backend-r8s4.onrender.com';
 
 const sampleStudents = [
   { id: '2023001', name: 'Alice Johnson', course: 'CSE 311' },
@@ -74,10 +76,61 @@ export default function Exams() {
 
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [isImportingZip, setIsImportingZip] = useState(false);
+  const fileInputRef = useRef(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleZipImport = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      alert('Please select a .zip file containing the Excel roster.');
+      event.target.value = '';
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      setIsImportingZip(true);
+      const response = await fetch(`${API_URL}/api/exams/upload-zip`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || data?.message || 'ZIP import failed.');
+      }
+
+      const importedRows = Array.isArray(data?.students) ? data.students : [];
+
+      if (importedRows.length > 0) {
+        const nextStudentList = importedRows
+          .map((student) => `${student.student_id},${student.course_code || form.course.split(':')[0].trim() || 'UNASSIGNED'}`)
+          .join('\n');
+
+        setForm((prev) => ({
+          ...prev,
+          studentList: nextStudentList
+        }));
+      }
+
+      alert(`Imported ${data.imported ?? importedRows.length} student records from ${file.name}.`);
+    } catch (error) {
+      console.error('ZIP import error:', error);
+      alert(error.message || 'Could not import the ZIP file.');
+    } finally {
+      setIsImportingZip(false);
+      event.target.value = '';
+    }
   };
 
   const resetForm = () => {
@@ -165,10 +218,31 @@ export default function Exams() {
           <h1 className="text-2xl font-bold text-slate-900">Exam Scheduling</h1>
           <p className="text-slate-500 mt-1">Create and manage upcoming examinations.</p>
         </div>
-        <button onClick={() => { resetForm(); setShowForm(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm shadow-blue-600/20 flex items-center justify-center gap-2">
-          <Plus size={18} />
-          <span>Schedule Exam</span>
-        </button>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImportingZip}
+            className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            <UploadCloud size={18} />
+            <span>{isImportingZip ? 'Importing...' : 'Import ZIP'}</span>
+          </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".zip"
+            hidden
+            onChange={handleZipImport}
+          />
+
+          <button onClick={() => { resetForm(); setShowForm(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm shadow-blue-600/20 flex items-center justify-center gap-2">
+            <Plus size={18} />
+            <span>Schedule Exam</span>
+          </button>
+        </div>
       </div>
 
       {showForm && (

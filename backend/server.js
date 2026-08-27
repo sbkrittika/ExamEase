@@ -9,13 +9,20 @@ const authRoutes = require("./routes/authRoutes");
 
 const app = express();
 
-app.use(
-    cors({
-        origin: "*",
-        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization"]
-    })
-);
+const corsOptions = {
+    origin: [
+        'https://examease-81dojdr99-krittika4.vercel.app', // production Vercel origin
+        'http://localhost:3000' // local dev origin (optional)
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+// Ensure preflight requests are handled for all routes
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 

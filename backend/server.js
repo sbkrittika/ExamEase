@@ -12,10 +12,15 @@ const courseRoutes = require("./routes/courseRoutes");
 const app = express();
 
 const corsOptions = {
-    origin: [
-        "https://examease-81dojdr99-krittika4.vercel.app",
-        "http://localhost:3000"
-    ],
+    origin: (origin, callback) => {
+        const isAllowed = !origin ||
+            origin === "https://examease.vercel.app" ||
+            /^https:\/\/examease-[a-z0-9-]+\.vercel\.app$/i.test(origin) ||
+            origin === "http://localhost:3000" ||
+            origin === "http://localhost:5173";
+
+        callback(null, isAllowed);
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,

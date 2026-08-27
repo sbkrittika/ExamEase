@@ -12,7 +12,12 @@ const app = express();
 const configuredOrigins = (process.env.CORS_ORIGINS || "").split(",").map((origin) => origin.trim()).filter(Boolean);
 const allowedOrigins = configuredOrigins.length
     ? configuredOrigins
-    : ["https://examease-81dojdr99-krittika4.vercel.app", "http://localhost:5173", "http://localhost:3000"];
+    : [
+        "https://examease-delta.vercel.app",
+        "https://examease-81dojdr99-krittika4.vercel.app",
+        "http://localhost:5173",
+        "http://localhost:3000"
+    ];
 
 const corsOptions = {
     origin: (origin, callback) => {

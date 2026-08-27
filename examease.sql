@@ -28,11 +28,12 @@ SET time_zone = "+00:00";
 --
 
 CREATE TABLE `courses` (
-  `course_code` varchar(64) NOT NULL,
+  `course_code` varchar(20) NOT NULL,
   `section` varchar(10) NOT NULL,
   `course_title` varchar(100) NOT NULL,
-  `semester` int(11) DEFAULT NULL,
-  `department` varchar(30) NOT NULL
+  `semester` int(11) NOT NULL,
+  `department` varchar(30) NOT NULL,
+  `credit` decimal(3,1) NOT NULL DEFAULT 3.0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -100,7 +101,7 @@ CREATE TABLE `rooms` (
 CREATE TABLE `seat_allocations` (
   `allocation_id` int(11) NOT NULL,
   `exam_id` int(11) NOT NULL,
-  `student_id` varchar(64) NOT NULL,
+  `student_id` varchar(20) NOT NULL,
   `course_code` varchar(30) NOT NULL,
   `room_id` int(11) NOT NULL,
   `row_no` int(11) DEFAULT NULL,
@@ -116,13 +117,9 @@ CREATE TABLE `seat_allocations` (
 
 CREATE TABLE `students` (
   `student_id` varchar(20) NOT NULL,
-  `student_number` varchar(64) DEFAULT NULL,
   `student_name` varchar(100) DEFAULT NULL,
-  `name` varchar(255) DEFAULT NULL,
-  `email` varchar(255) DEFAULT NULL,
-  `department` varchar(150) DEFAULT NULL,
   `semester` int(11) NOT NULL,
-  `course_code` varchar(64) NOT NULL
+  `course_code` varchar(30) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -151,8 +148,7 @@ CREATE TABLE `users` (
 -- Indexes for table `courses`
 --
 ALTER TABLE `courses`
-  ADD PRIMARY KEY (`course_code`,`section`),
-  ADD UNIQUE KEY `course_code_unique` (`course_code`);
+  ADD PRIMARY KEY (`course_code`,`section`);
 
 --
 -- Indexes for table `exams`

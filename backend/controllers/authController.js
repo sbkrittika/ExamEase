@@ -131,7 +131,6 @@ const register = async (req, res) => {
                         success: false,
                         message:
                             "Database error while checking email.",
-                        error: err.message
                     });
                 }
 
@@ -193,7 +192,6 @@ const register = async (req, res) => {
                                     success: false,
                                     message:
                                         "Database error while creating account.",
-                                    error: err.message
                                 });
                             }
 
@@ -218,8 +216,6 @@ const register = async (req, res) => {
                         success: false,
                         message:
                             "Password processing failed.",
-                        error:
-                            hashError.message
                     });
                 }
             }
@@ -425,6 +421,13 @@ const changeAdminCredentials =
                     .trim()
                     .toLowerCase();
 
+            if (req.user && req.user.email !== cleanOldEmail) {
+                return res.status(403).json({
+                    success: false,
+                    message: "You can only change credentials for your own account."
+                });
+            }
+
             const cleanNewEmail =
                 newEmail
                     .trim()
@@ -439,6 +442,13 @@ const changeAdminCredentials =
                     success: false,
                     message:
                         "New email must be an East Delta University email."
+                });
+            }
+
+            if (newPassword.length < 6) {
+                return res.status(400).json({
+                    success: false,
+                    message: "New password must be at least 6 characters long."
                 });
             }
 

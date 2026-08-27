@@ -3,25 +3,23 @@ const cors = require("cors");
 require("dotenv").config();
 
 const db = require("./config/db");
-console.log("DB NAME FROM RENDER:", process.env.DB_NAME);
-console.log("DB HOST FROM RENDER:", process.env.DB_HOST);
 const authRoutes = require("./routes/authRoutes");
-const dataRoutes = require("./routes/dataRoutes");
 const courseRoutes = require("./routes/courseRoutes");
+const examRoutes = require("./routes/examRoutes");
+const resourceRoutes = require("./routes/resourceRoutes");
 
 const app = express();
+const configuredOrigins = (process.env.CORS_ORIGINS || "").split(",").map((origin) => origin.trim()).filter(Boolean);
+const allowedOrigins = configuredOrigins.length
+    ? configuredOrigins
+    : ["https://examease-81dojdr99-krittika4.vercel.app", "http://localhost:5173", "http://localhost:3000"];
 
 const corsOptions = {
     origin: (origin, callback) => {
-        const isAllowed = !origin ||
-            origin === "https://examease.vercel.app" ||
-            /^https:\/\/examease-[a-z0-9-]+\.vercel\.app$/i.test(origin) ||
-            origin === "http://localhost:3000" ||
-            origin === "http://localhost:5173";
-
-        callback(null, isAllowed);
+        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        callback(new Error("Origin is not allowed by CORS"));
     },
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
     optionsSuccessStatus: 204
@@ -29,86 +27,97 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
+app.use(express.json({ limit: "2mb" }));
 
-app.use(express.json());
-
-app.get("/", (req, res) => {
-    res.json({
-        message: "ExamEase Backend is Running!"
-    });
+app.get("/", (req, res) => res.json({ success: true, message: "ExamEase Backend is running." }));
+app.get("/api/health", async (req, res) => {
+    try {
+        await db.promise().query("SELECT 1");
+        res.json({ success: true, database: "connected" });
+    } catch {
+        res.status(503).json({ success: false, database: "unavailable" });
+    }
 });
 
-const createUsersTable = `CREATE TABLE IF NOT EXISTS users (
-    user_id INT AUTO_INCREMENT PRIMARY KEY, full_name VARCHAR(150) NOT NULL,
-    email VARCHAR(255) NOT NULL UNIQUE, password VARCHAR(255) NOT NULL,
-    role ENUM('student', 'faculty') NOT NULL, designation VARCHAR(150),
-    department VARCHAR(150) NOT NULL, phone VARCHAR(30), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)`;
-const createStudentsTable = `CREATE TABLE IF NOT EXISTS students (
-    student_id VARCHAR(20) PRIMARY KEY, student_number VARCHAR(64), name VARCHAR(255) NOT NULL,
-    email VARCHAR(255), department VARCHAR(150), semester INT, course_code VARCHAR(64)
-)`;
-const createCoursesTable = `CREATE TABLE IF NOT EXISTS courses (
-    course_code VARCHAR(64) PRIMARY KEY, section VARCHAR(10) NOT NULL DEFAULT 'A',
-    course_title VARCHAR(255) NOT NULL, semester INT NOT NULL DEFAULT 1, department VARCHAR(150) NOT NULL DEFAULT 'General'
-)`;
-const createRoomsTable = `CREATE TABLE IF NOT EXISTS rooms (
-    room_id INT AUTO_INCREMENT PRIMARY KEY, room_number VARCHAR(20) NOT NULL UNIQUE,
-    building VARCHAR(100), capacity INT NOT NULL, status ENUM('Available','Unavailable') DEFAULT 'Available'
-)`;
-const createStudentCourses = `CREATE TABLE IF NOT EXISTS student_courses (
-    student_id VARCHAR(20), course_code VARCHAR(64), PRIMARY KEY (student_id, course_code),
-    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
-    FOREIGN KEY (course_code) REFERENCES courses(course_code) ON DELETE CASCADE
-) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`;
-const createExamsTable = `CREATE TABLE IF NOT EXISTS exams (
-    exam_id INT AUTO_INCREMENT PRIMARY KEY, exam_date DATE NOT NULL, start_time TIME NOT NULL,
-    end_time TIME NOT NULL, exam_type VARCHAR(30), created_by INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (created_by) REFERENCES users(user_id)
-)`;
-const createExamCourses = `CREATE TABLE IF NOT EXISTS exam_courses (
-    exam_course_id INT AUTO_INCREMENT PRIMARY KEY, exam_id INT NOT NULL, course_code VARCHAR(64) NOT NULL,
-    total_students INT NOT NULL, FOREIGN KEY (exam_id) REFERENCES exams(exam_id) ON DELETE CASCADE,
-    FOREIGN KEY (course_code) REFERENCES courses(course_code)
-) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`;
-const createExamAllocations = `CREATE TABLE IF NOT EXISTS exam_allocations (
-    id INT AUTO_INCREMENT PRIMARY KEY, exam_id INT, room_id INT, student_id VARCHAR(64),
-    FOREIGN KEY (exam_id) REFERENCES exams(exam_id) ON DELETE CASCADE
-) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`;
-const createInvigilationTable = `CREATE TABLE IF NOT EXISTS invigilator_assignments (
-    assignment_id INT AUTO_INCREMENT PRIMARY KEY, exam_id INT NOT NULL, room_id INT NOT NULL,
-    faculty_id INT NOT NULL, assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (exam_id) REFERENCES exams(exam_id) ON DELETE CASCADE,
-    FOREIGN KEY (room_id) REFERENCES rooms(room_id), FOREIGN KEY (faculty_id) REFERENCES users(user_id)
-) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`;
+const tables = [
+    `CREATE TABLE IF NOT EXISTS users (
+        user_id INT AUTO_INCREMENT PRIMARY KEY, full_name VARCHAR(150) NOT NULL,
+        email VARCHAR(255) NOT NULL UNIQUE, password VARCHAR(255) NOT NULL,
+        role ENUM('student','faculty') NOT NULL, designation VARCHAR(150),
+        department VARCHAR(150) NOT NULL, phone VARCHAR(30), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB`,
+    `CREATE TABLE IF NOT EXISTS courses (
+        course_code VARCHAR(30) NOT NULL, section VARCHAR(10) NOT NULL DEFAULT 'A',
+        course_title VARCHAR(150) NOT NULL, semester INT NOT NULL, department VARCHAR(100) NOT NULL,
+        credit DECIMAL(3,1) NOT NULL DEFAULT 3, PRIMARY KEY (course_code, section)
+    ) ENGINE=InnoDB`,
+    `CREATE TABLE IF NOT EXISTS students (
+        student_id VARCHAR(30) PRIMARY KEY, student_name VARCHAR(150) NOT NULL,
+        semester INT NOT NULL, course_code VARCHAR(30) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY course_code_idx (course_code)
+    ) ENGINE=InnoDB`,
+    `CREATE TABLE IF NOT EXISTS rooms (
+        room_id INT AUTO_INCREMENT PRIMARY KEY, room_number VARCHAR(30) NOT NULL UNIQUE,
+        building VARCHAR(100), capacity INT NOT NULL, status ENUM('Available','Unavailable') NOT NULL DEFAULT 'Available'
+    ) ENGINE=InnoDB`,
+    `CREATE TABLE IF NOT EXISTS exams (
+        exam_id INT AUTO_INCREMENT PRIMARY KEY, exam_date DATE NOT NULL, start_time TIME NOT NULL,
+        end_time TIME NOT NULL, exam_type VARCHAR(50), created_by INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY exam_date_idx (exam_date)
+    ) ENGINE=InnoDB`,
+    `CREATE TABLE IF NOT EXISTS exam_courses (
+        exam_course_id INT AUTO_INCREMENT PRIMARY KEY, exam_id INT NOT NULL,
+        course_code VARCHAR(30) NOT NULL, total_students INT NOT NULL DEFAULT 0,
+        UNIQUE KEY exam_course_unique (exam_id, course_code)
+    ) ENGINE=InnoDB`,
+    `CREATE TABLE IF NOT EXISTS seat_allocations (
+        allocation_id INT AUTO_INCREMENT PRIMARY KEY, exam_id INT NOT NULL, student_id VARCHAR(30) NOT NULL,
+        course_code VARCHAR(30) NOT NULL, room_id INT NOT NULL, row_no INT, column_no INT, seat_no INT,
+        UNIQUE KEY exam_student_unique (exam_id, student_id)
+    ) ENGINE=InnoDB`,
+    `CREATE TABLE IF NOT EXISTS invigilator_assignments (
+        assignment_id INT AUTO_INCREMENT PRIMARY KEY, exam_id INT NOT NULL, room_id INT NOT NULL,
+        faculty_id INT NOT NULL, assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY exam_faculty_unique (exam_id, faculty_id)
+    ) ENGINE=InnoDB`
+];
+const migrations = [
+    "ALTER TABLE users ADD COLUMN role ENUM('student','faculty') NOT NULL DEFAULT 'faculty'",
+    "ALTER TABLE courses ADD COLUMN credit DECIMAL(3,1) NOT NULL DEFAULT 3",
+    "ALTER TABLE students ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+];
 
-const tables = [createUsersTable, createStudentsTable, createCoursesTable, createRoomsTable, createStudentCourses, createExamsTable, createExamCourses, createExamAllocations, createInvigilationTable];
+app.use("/api/auth", authRoutes);
+app.use("/api/courses", courseRoutes);
+app.use("/api/exams", examRoutes);
+app.use("/api", resourceRoutes);
 
-(function createAll(i) {
-    if (i >= tables.length) {
-        console.log('All tables ready');
-        // mount routes after tables ready
-        app.use('/api/auth', authRoutes);
-        app.use('/api/data', dataRoutes);
-        app.use('/api/courses', courseRoutes);
+app.use((err, req, res, next) => {
+    if (res.headersSent) return next(err);
+    console.error("Unhandled request error:", err.message);
+    res.status(500).json({ success: false, message: "Something went wrong. Please try again." });
+});
 
-        // mount exam routes
-        const examRoutes = require('./routes/examRoutes');
-        app.use('/api/exams', examRoutes);
-
-        const PORT = process.env.PORT || 5000;
-        app.listen(PORT, '0.0.0.0', () => {
-            console.log(`ExamEase server running on port ${PORT}`);
-        });
-        return;
+async function start() {
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
+        throw new Error("JWT_SECRET must be configured with a secure value.");
     }
-    db.query(tables[i], (err) => {
-        if (err) {
-            console.error('Table creation failed:', err.message);
-            createAll(i + 1);
-            return;
+    for (const table of tables) await db.promise().query(table);
+    for (const migration of migrations) {
+        try { await db.promise().query(migration); } catch (error) {
+            // MySQL reports duplicate-column when an existing deployment is already up to date.
+            if (error.code !== "ER_DUP_FIELDNAME") throw error;
         }
-        console.log('Created table', i);
-        createAll(i + 1);
+    }
+    const port = Number(process.env.PORT || 5000);
+    app.listen(port, "0.0.0.0", () => console.log(`ExamEase server running on port ${port}`));
+}
+
+if (require.main === module) {
+    start().catch((error) => {
+        console.error("Database startup failed:", error.message);
+        process.exitCode = 1;
     });
-})(0);
+}
+
+module.exports = { app, start };

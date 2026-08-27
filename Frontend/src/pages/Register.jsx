@@ -10,7 +10,8 @@ import {
     Building2,
     ArrowLeft
 } from "lucide-react";
-import { API_URL } from "../api";
+
+const API_URL = import.meta.env.VITE_API_URL || "https://examease-backend-r8s4.onrender.com";
 
 export default function Register() {
     const navigate = useNavigate();

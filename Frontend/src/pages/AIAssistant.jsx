@@ -31,10 +31,10 @@ export default function AIAssistant() {
       let aiText = "I understand. Let me check the database for that information.";
       
       const lowerInput = userMessage.text.toLowerCase();
-      if (lowerInput.includes('room') && lowerInput.includes('cse 311')) {
-        aiText = "For CSE 311: Database Systems, the seat plan has allocated students to Rooms 101 and 102 in Building A. Would you like me to print this seat plan?";
+      if (lowerInput.includes('room')) {
+        aiText = "Open Room Management to review current capacity and availability. I can only use rooms and plans that have been saved in the system.";
       } else if (lowerInput.includes('conflict')) {
-        aiText = "I found 1 scheduling conflict. Dr. Isaac Newton is assigned to Room 205 and Room 101 simultaneously at 10:00 AM on Oct 24. I recommend assigning Dr. Marie Curie to Room 101 instead as she is available.";
+        aiText = "Open Invigilation Duties to review assignments and resolve any conflicts using the saved examination schedule.";
       }
 
       setMessages((prev) => [...prev, { id: Date.now(), type: 'ai', text: aiText }]);

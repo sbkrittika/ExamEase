@@ -11,13 +11,19 @@ const courseRoutes = require("./routes/courseRoutes");
 
 const app = express();
 
-app.use(
-    cors({
-        origin: "*",
-        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization"]
-    })
-);
+const corsOptions = {
+    origin: [
+        "https://examease-81dojdr99-krittika4.vercel.app",
+        "http://localhost:3000"
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+    optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 
 app.use(express.json());
 
@@ -34,7 +40,7 @@ const createUsersTable = `CREATE TABLE IF NOT EXISTS users (
     department VARCHAR(150) NOT NULL, phone VARCHAR(30), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )`;
 const createStudentsTable = `CREATE TABLE IF NOT EXISTS students (
-    student_id VARCHAR(64) PRIMARY KEY, student_number VARCHAR(64), name VARCHAR(255) NOT NULL,
+    student_id VARCHAR(20) PRIMARY KEY, student_number VARCHAR(64), name VARCHAR(255) NOT NULL,
     email VARCHAR(255), department VARCHAR(150), semester INT, course_code VARCHAR(64)
 )`;
 const createCoursesTable = `CREATE TABLE IF NOT EXISTS courses (
@@ -46,7 +52,7 @@ const createRoomsTable = `CREATE TABLE IF NOT EXISTS rooms (
     building VARCHAR(100), capacity INT NOT NULL, status ENUM('Available','Unavailable') DEFAULT 'Available'
 )`;
 const createStudentCourses = `CREATE TABLE IF NOT EXISTS student_courses (
-    student_id VARCHAR(64), course_code VARCHAR(64), PRIMARY KEY (student_id, course_code),
+    student_id VARCHAR(20), course_code VARCHAR(64), PRIMARY KEY (student_id, course_code),
     FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
     FOREIGN KEY (course_code) REFERENCES courses(course_code) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`;
@@ -94,6 +100,7 @@ const tables = [createUsersTable, createStudentsTable, createCoursesTable, creat
     db.query(tables[i], (err) => {
         if (err) {
             console.error('Table creation failed:', err.message);
+            createAll(i + 1);
             return;
         }
         console.log('Created table', i);

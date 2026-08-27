@@ -60,10 +60,10 @@ export default function Register() {
 
         if (
             formData.role === "faculty" &&
-            !/^[a-z]+(?:[._-][a-z]+)+@eastdelta\.edu\.bd$/i.test(email)
+            !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@eastdelta\.edu\.bd$/i.test(email)
         ) {
             alert(
-                "Please enter a valid faculty email. Example: jahidul.h@eastdelta.edu.bd"
+                "Faculty email must use the @eastdelta.edu.bd university domain."
             );
             return;
         }

@@ -8,7 +8,7 @@ const STUDENT_EMAIL_REGEX =
     /^\d{9}@eastdelta\.edu\.bd$/i;
 
 const FACULTY_EMAIL_REGEX =
-    /^[a-z]+(?:[._-][a-z]+)+@eastdelta\.edu\.bd$/i;
+    /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@eastdelta\.edu\.bd$/i;
 
 
 // =========================
@@ -99,7 +99,7 @@ const register = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message:
-                    "Faculty email format is invalid. Example: jahidul.h@eastdelta.edu.bd"
+                    "Faculty email must use the @eastdelta.edu.bd university domain."
             });
         }
 

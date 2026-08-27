@@ -47,17 +47,19 @@ const dashboard = (req, res) => {
 const addStudent = (req, res) => {
     const { student_id, student_number, name, email, department, semester, course_code } = req.body;
     if (!student_id || !name) return res.status(400).json({ success: false, message: "Student ID and name are required." });
-    db.query("INSERT INTO students (student_id, student_number, name, email, department, semester, course_code) VALUES (?, ?, ?, ?, ?, ?, ?)", [student_id.trim(), student_number || null, name.trim(), email || null, department || null, semester || null, course_code || null], (err) => {
+    db.query("INSERT INTO students (student_id, student_number, name, email, department, semester, course_code) VALUES (?, ?, ?, ?, ?, ?, ?)", [student_id.trim(), student_number || null, name.trim(), email || null, department || null, semester || 1, course_code ? course_code.trim() : null], (err) => {
         if (err) return res.status(err.code === "ER_DUP_ENTRY" ? 409 : 500).json({ success: false, message: err.code === "ER_DUP_ENTRY" ? "Student ID already exists." : "Failed to add student.", error: err.message });
         res.status(201).json({ success: true, message: "Student added successfully." });
     });
 };
 
-const deleteStudent = (req, res) => db.query("DELETE FROM students WHERE student_id = ?", [req.params.id], (err, result) => {
-    if (err) return res.status(500).json({ success: false, message: "Failed to delete student.", error: err.message });
-    if (!result.affectedRows) return res.status(404).json({ success: false, message: "Student not found." });
-    res.json({ success: true, message: "Student deleted successfully." });
-});
+const deleteStudent = (req, res) => {
+    db.query("DELETE FROM students WHERE student_id = ?", [req.params.id], (err, result) => {
+        if (err) return res.status(500).json({ success: false, message: "Failed to delete student.", error: err.message });
+        if (!result.affectedRows) return res.status(404).json({ success: false, message: "Student not found." });
+        res.json({ success: true, message: "Student deleted successfully." });
+    });
+};
 
 const addRoom = (req, res) => {
     const { room_number, building, capacity, status } = req.body;
@@ -68,11 +70,13 @@ const addRoom = (req, res) => {
     });
 };
 
-const deleteRoom = (req, res) => db.query("DELETE FROM rooms WHERE room_id = ?", [req.params.id], (err, result) => {
-    if (err) return res.status(500).json({ success: false, message: "Failed to delete room.", error: err.message });
-    if (!result.affectedRows) return res.status(404).json({ success: false, message: "Room not found." });
-    res.json({ success: true, message: "Room deleted successfully." });
-});
+const deleteRoom = (req, res) => {
+    db.query("DELETE FROM rooms WHERE room_id = ?", [req.params.id], (err, result) => {
+        if (err) return res.status(500).json({ success: false, message: "Failed to delete room.", error: err.message });
+        if (!result.affectedRows) return res.status(404).json({ success: false, message: "Room not found." });
+        res.json({ success: true, message: "Room deleted successfully." });
+    });
+};
 
 const addFaculty = async(req, res) => {
     const { full_name, email, password, department, designation, phone } = req.body;
@@ -84,11 +88,13 @@ const addFaculty = async(req, res) => {
     });
 };
 
-const deleteFaculty = (req, res) => db.query("DELETE FROM users WHERE user_id = ? AND role = 'faculty'", [req.params.id], (err, result) => {
-    if (err) return res.status(500).json({ success: false, message: "Failed to delete faculty.", error: err.message });
-    if (!result.affectedRows) return res.status(404).json({ success: false, message: "Faculty member not found." });
-    res.json({ success: true, message: "Faculty deleted successfully." });
-});
+const deleteFaculty = (req, res) => {
+    db.query("DELETE FROM users WHERE user_id = ? AND role = 'faculty'", [req.params.id], (err, result) => {
+        if (err) return res.status(500).json({ success: false, message: "Failed to delete faculty.", error: err.message });
+        if (!result.affectedRows) return res.status(404).json({ success: false, message: "Faculty member not found." });
+        res.json({ success: true, message: "Faculty deleted successfully." });
+    });
+};
 
 const getAssignments = (req, res) => {
     const sql = `SELECT ia.assignment_id, ia.exam_id, ia.room_id, ia.faculty_id, u.full_name, u.email,
@@ -116,10 +122,12 @@ const addAssignment = (req, res) => {
     });
 };
 
-const deleteAssignment = (req, res) => db.query("DELETE FROM invigilator_assignments WHERE assignment_id = ?", [req.params.id], (err, result) => {
-    if (err) return res.status(500).json({ success: false, message: "Failed to delete assignment.", error: err.message });
-    if (!result.affectedRows) return res.status(404).json({ success: false, message: "Assignment not found." });
-    res.json({ success: true, message: "Assignment deleted successfully." });
-});
+const deleteAssignment = (req, res) => {
+    db.query("DELETE FROM invigilator_assignments WHERE assignment_id = ?", [req.params.id], (err, result) => {
+        if (err) return res.status(500).json({ success: false, message: "Failed to delete assignment.", error: err.message });
+        if (!result.affectedRows) return res.status(404).json({ success: false, message: "Assignment not found." });
+        res.json({ success: true, message: "Assignment deleted successfully." });
+    });
+};
 
 module.exports = { getFaculty, getRooms, getStudents, dashboard, addStudent, deleteStudent, addRoom, deleteRoom, addFaculty, deleteFaculty, getAssignments, addAssignment, deleteAssignment };

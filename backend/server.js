@@ -52,7 +52,7 @@ const createStudentCourses = `CREATE TABLE IF NOT EXISTS student_courses (
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`;
 const createExamsTable = `CREATE TABLE IF NOT EXISTS exams (
     exam_id INT AUTO_INCREMENT PRIMARY KEY, exam_date DATE NOT NULL, start_time TIME NOT NULL,
-    end_time TIME NOT NULL, exam_type VARCHAR(30), created_by INT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    end_time TIME NOT NULL, exam_type VARCHAR(30), created_by INT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (created_by) REFERENCES users(user_id)
 )`;
 const createExamCourses = `CREATE TABLE IF NOT EXISTS exam_courses (
@@ -75,19 +75,29 @@ const tables = [createUsersTable, createStudentsTable, createCoursesTable, creat
 
 (function createAll(i) {
     if (i >= tables.length) {
-        console.log('All tables ready');
-        // mount routes after tables ready
-        app.use('/api/auth', authRoutes);
-        app.use('/api/data', dataRoutes);
-        app.use('/api/courses', courseRoutes);
+        db.query('ALTER TABLE students MODIFY course_code VARCHAR(64) NULL', (studentAlterError) => {
+            if (studentAlterError) {
+                console.error('Student course migration failed:', studentAlterError.message);
+                return;
+            }
+            db.query('ALTER TABLE exams MODIFY created_by INT NULL', (examAlterError) => {
+                if (examAlterError) {
+                    console.error('Exam creator migration failed:', examAlterError.message);
+                    return;
+                }
+                console.log('All tables ready');
+                app.use('/api/auth', authRoutes);
+                app.use('/api/data', dataRoutes);
+                app.use('/api/courses', courseRoutes);
 
-        // mount exam routes
-        const examRoutes = require('./routes/examRoutes');
-        app.use('/api/exams', examRoutes);
+                const examRoutes = require('./routes/examRoutes');
+                app.use('/api/exams', examRoutes);
 
-        const PORT = process.env.PORT || 5000;
-        app.listen(PORT, '0.0.0.0', () => {
-            console.log(`ExamEase server running on port ${PORT}`);
+                const PORT = process.env.PORT || 5000;
+                app.listen(PORT, '0.0.0.0', () => {
+                    console.log(`ExamEase server running on port ${PORT}`);
+                });
+            });
         });
         return;
     }

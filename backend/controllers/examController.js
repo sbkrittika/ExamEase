@@ -353,9 +353,6 @@ const allocate = (req, res) => {
             else if (!studentsMap.get(r.student_id).course_code && r.course_code) studentsMap.get(r.student_id).course_code = r.course_code;
         }
         const students = Array.from(studentsMap.values());
-        const unassigned = students.filter((student) => !student.course_code);
-        if (unassigned.length) return res.status(400).json({ error: `${unassigned.length} student(s) have no course assignment.` });
-
         db.query('SELECT room_id, room_number, capacity FROM rooms WHERE room_id IN (?) AND status = "Available"', [roomIds], (roomError, roomRows) => {
             if (roomError) return res.status(500).json({ error: roomError.message });
             if (roomRows.length !== roomIds.length) return res.status(400).json({ error: 'One or more selected rooms are unavailable or do not exist.' });
@@ -371,18 +368,16 @@ const allocate = (req, res) => {
                 if (cErr) return res.status(500).json({ error: cErr.message });
                 conn.beginTransaction(tErr => {
                     if (tErr) return res.status(500).json({ error: tErr.message });
-                    const creator = (req.user && req.user.user_id) || req.body.created_by;
-                    if (!creator) return conn.rollback(() => {
-                        conn.release();
-                        res.status(400).json({ error: 'created_by is required.' });
-                    });
+                    const creator = (req.user && req.user.user_id) || req.body.created_by || null;
                     conn.query(insertExam, [exam_date, exam_time, req.body.end_time || exam_time, creator], (ieErr, ieRes) => {
                         if (ieErr) return conn.rollback(() => res.status(500).json({ error: ieErr.message }));
                         const examId = ieRes.insertId;
                         const courseTotals = new Map();
-                        for (const student of students) courseTotals.set(student.course_code, (courseTotals.get(student.course_code) || 0) + 1);
+                        for (const student of students) {
+                            if (student.course_code) courseTotals.set(student.course_code, (courseTotals.get(student.course_code) || 0) + 1);
+                        }
                         const courseRows = Array.from(courseTotals.entries()).map(([code, total]) => [examId, code, total]);
-                        conn.query('INSERT INTO exam_courses (exam_id, course_code, total_students) VALUES ?', [courseRows], (courseError) => {
+                        const saveCourseRows = (courseError) => {
                             if (courseError) return conn.rollback(() => res.status(500).json({ error: courseError.message }));
                             const insertAlloc = `INSERT INTO exam_allocations (exam_id, room_id, student_id) VALUES ?`;
                             const rowsToInsert = [];
@@ -404,7 +399,9 @@ const allocate = (req, res) => {
                                     res.json({ allocations, warnings, examId });
                                 });
                             });
-                        });
+                        };
+                        if (courseRows.length === 0) saveCourseRows(null);
+                        else conn.query('INSERT INTO exam_courses (exam_id, course_code, total_students) VALUES ?', [courseRows], saveCourseRows);
                     });
                 });
             });

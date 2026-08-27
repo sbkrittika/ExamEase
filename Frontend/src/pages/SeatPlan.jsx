@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react';
 import { Grid, Upload, Printer } from 'lucide-react';
 import { API_URL, apiRequest } from '../api';
 
+function seatRows(students, columnCount) {
+  const rows = [];
+  for (let index = 0; index < students.length; index += columnCount) rows.push(students.slice(index, index + columnCount));
+  return rows;
+}
+
 export default function SeatPlan() {
   const [rooms, setRooms] = useState([]);
   const [students, setStudents] = useState([]);
@@ -62,7 +68,7 @@ export default function SeatPlan() {
     {allocation && <section className="seat-plan-document">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4 print:hidden"><div><h2 className="text-xl font-bold text-slate-900">Generated Examination Allocation</h2><p className="text-sm text-slate-500">Room-wise student placement</p></div><div className="flex items-center gap-2"><label className="text-sm text-slate-600">Columns <select value={columns} onChange={(event) => setColumns(Number(event.target.value))} className="ml-2 border border-slate-200 rounded-lg px-2 py-1"><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="8">8</option></select></label><button onClick={() => window.print()} className="bg-slate-900 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2"><Printer size={16} />Print</button></div></div>
       <div className="seat-plan-header"><p className="text-xs uppercase tracking-[0.2em] text-slate-500">ExamEase University Examination</p><h2>Room Allocation Plan</h2><p>{form.exam_date} <span>|</span> {form.exam_time}</p></div>
-      {Object.entries(allocation).map(([roomId, assigned]) => { const room = rooms.find((item) => String(item.room_id) === String(roomId)); const courseCounts = assigned.reduce((counts, student) => ({ ...counts, [student.course_code || 'Unassigned']: (counts[student.course_code || 'Unassigned'] || 0) + 1 }), {}); return <article key={roomId} className="room-plan"><div className="room-plan-heading"><div><span className="room-kicker">Examination Room</span><h3>{room?.room_number || roomId}</h3></div><div className="room-metrics"><span>{assigned.length} students</span><span>{room ? `Capacity ${room.capacity}` : ''}</span></div></div><div className="course-summary">{Object.entries(courseCounts).map(([course, count]) => <span key={course}>{course} <strong>{count}</strong></span>)}</div><div className="student-grid" style={{ '--grid-columns': columns }}>{assigned.map((student) => <div key={student.student_id} className="student-cell"><strong>{student.course_code || 'Unassigned'}</strong><span>{student.student_id}</span></div>)}</div><div className="room-footer"><span>Invigilator: ____________________</span><span>Total allocated: {assigned.length}</span></div></article>; })}
+      {Object.entries(allocation).map(([roomId, assigned]) => { const room = rooms.find((item) => String(item.room_id) === String(roomId)); const rows = seatRows(assigned, columns); return <article key={roomId} className="room-plan"><div className="room-plan-heading"><div><span className="room-kicker">Examination Room</span><h3>{room?.room_number || roomId}</h3></div><div className="room-metrics"><span>{assigned.length} students</span><span>{room ? `Capacity ${room.capacity}` : ''}</span></div></div><div className="seat-table-wrap"><table className="seat-table"><thead><tr><th>Room</th>{Array.from({ length: columns }, (_, index) => <th key={index}>Column {index + 1}</th>)}<th>Invigilator</th></tr></thead><tbody>{rows.map((row, rowIndex) => <tr key={rowIndex}>{rowIndex === 0 && <td rowSpan={rows.length} className="room-name-cell">{room?.room_number || roomId}</td>}{Array.from({ length: columns }, (_, columnIndex) => { const student = row[columnIndex]; return <td key={columnIndex}>{student && <><strong>{student.course_code || 'Unassigned'}</strong><span>{student.student_id}</span></>}</td>; })}{rowIndex === 0 && <td rowSpan={rows.length} className="invigilator-cell">____________________</td>}</tr>)}</tbody></table></div><div className="room-footer"><span>Invigilator: ____________________</span><span>Total allocated: {assigned.length}</span></div></article>; })}
     </section>}
   </div>;
 }

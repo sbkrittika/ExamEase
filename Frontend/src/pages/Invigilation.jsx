@@ -1,93 +1,13 @@
-import { useState } from 'react';
-import { UserCheck, Search, ShieldAlert } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { UserCheck, Search, Trash2 } from 'lucide-react';
+import { apiRequest } from '../api';
 
 export default function Invigilation() {
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const assignments = [
-    { id: 1, faculty: 'Dr. Alan Turing', course: 'CSE 311', room: '101', date: 'Oct 24, 2026', time: '10:00 AM', status: 'Confirmed' },
-    { id: 2, faculty: 'Dr. Ada Lovelace', course: 'CSE 311', room: '102', date: 'Oct 24, 2026', time: '10:00 AM', status: 'Confirmed' },
-    { id: 3, faculty: 'Dr. Isaac Newton', course: 'MTH 201', room: '205', date: 'Oct 25, 2026', time: '02:00 PM', status: 'Pending Conflict' },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Invigilation Duties</h1>
-          <p className="text-slate-500 mt-1">Assign and manage faculty invigilation schedules.</p>
-        </div>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm shadow-blue-600/20 flex items-center space-x-2">
-          <UserCheck size={18} />
-          <span>Auto Assign</span>
-        </button>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="relative w-full sm:w-96">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search size={18} className="text-slate-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search by faculty name or course..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-            />
-          </div>
-          <div className="flex items-center space-x-2">
-            <select className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-600 outline-none focus:ring-2 focus:ring-blue-500">
-              <option>Filter by Date</option>
-              <option>Oct 24, 2026</option>
-              <option>Oct 25, 2026</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                <th className="px-6 py-4">Faculty Name</th>
-                <th className="px-6 py-4">Course</th>
-                <th className="px-6 py-4">Room</th>
-                <th className="px-6 py-4">Date & Time</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {assignments.map((assignment) => (
-                <tr key={assignment.id} className="hover:bg-slate-50 transition-colors group">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{assignment.faculty}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{assignment.course}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 font-medium">Room {assignment.room}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                    {assignment.date} at {assignment.time}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {assignment.status === 'Confirmed' ? (
-                      <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
-                        {assignment.status}
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-red-50 text-red-700 border border-red-100 flex items-center space-x-1 w-fit">
-                        <ShieldAlert size={12} />
-                        <span>{assignment.status}</span>
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button className="text-blue-600 hover:text-blue-700">Reassign</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+  const [assignments, setAssignments] = useState([]); const [exams, setExams] = useState([]); const [faculty, setFaculty] = useState([]); const [rooms, setRooms] = useState([]); const [searchTerm, setSearchTerm] = useState(''); const [form, setForm] = useState({ exam_id: '', room_id: '', faculty_id: '' }); const [showForm, setShowForm] = useState(false); const [message, setMessage] = useState('');
+  const load = () => Promise.all([apiRequest('/api/data/assignments'), apiRequest('/api/exams'), apiRequest('/api/data/faculty'), apiRequest('/api/data/rooms')]).then(([a, e, f, r]) => { setAssignments(a.assignments || []); setExams(e.exams || []); setFaculty(f.faculty || []); setRooms(r.rooms || []); });
+  useEffect(() => { load().catch((error) => setMessage(error.message)); }, []);
+  const save = async (event) => { event.preventDefault(); try { await apiRequest('/api/data/assignments', { method: 'POST', body: JSON.stringify(form) }); setForm({ exam_id: '', room_id: '', faculty_id: '' }); setShowForm(false); await load(); setMessage('Invigilator assigned successfully.'); } catch (error) { setMessage(error.message); } };
+  const remove = async (id) => { try { await apiRequest(`/api/data/assignments/${id}`, { method: 'DELETE' }); await load(); } catch (error) { setMessage(error.message); } };
+  const visible = assignments.filter((item) => `${item.full_name} ${item.course_code} ${item.room_number}`.toLowerCase().includes(searchTerm.toLowerCase()));
+  return <div className="space-y-6"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"><div><h1 className="text-2xl font-bold text-slate-900">Invigilation Duties</h1><p className="text-slate-500 mt-1">Assign faculty to examination rooms.</p></div><button onClick={() => setShowForm(!showForm)} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2"><UserCheck size={18} />Add Invigilator</button></div>{message && <p className="text-sm text-slate-600">{message}</p>}{showForm && <form onSubmit={save} className="bg-white rounded-2xl border border-slate-100 p-6 grid grid-cols-1 md:grid-cols-4 gap-4"><select required value={form.exam_id} onChange={(e) => setForm({ ...form, exam_id: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm"><option value="">Select exam</option>{exams.map((exam) => <option key={exam.exam_id} value={exam.exam_id}>{exam.course_code} - {exam.exam_date} {exam.start_time}</option>)}</select><select required value={form.room_id} onChange={(e) => setForm({ ...form, room_id: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm"><option value="">Select room</option>{rooms.map((room) => <option key={room.room_id} value={room.room_id}>{room.room_number}</option>)}</select><select required value={form.faculty_id} onChange={(e) => setForm({ ...form, faculty_id: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm"><option value="">Select faculty</option>{faculty.map((member) => <option key={member.user_id} value={member.user_id}>{member.full_name}</option>)}</select><button className="rounded-xl bg-blue-600 text-white">Assign</button></form>}<div className="bg-white rounded-2xl border border-slate-100 overflow-hidden"><div className="p-4 border-b border-slate-100"><div className="relative w-full sm:w-96"><Search size={18} className="absolute left-3 top-2.5 text-slate-400" /><input placeholder="Search by faculty, course or room..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl text-sm" /></div></div><div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="bg-slate-50 text-xs uppercase text-slate-500"><th className="px-6 py-4">Faculty</th><th className="px-6 py-4">Course</th><th className="px-6 py-4">Room</th><th className="px-6 py-4">Date & Time</th><th className="px-6 py-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{visible.map((item) => <tr key={item.assignment_id}><td className="px-6 py-4 text-sm font-medium">{item.full_name}</td><td className="px-6 py-4 text-sm">{item.course_code || '-'}</td><td className="px-6 py-4 text-sm">{item.room_number}</td><td className="px-6 py-4 text-sm text-slate-500">{item.exam_date} {item.start_time} - {item.end_time}</td><td className="px-6 py-4 text-right"><button onClick={() => remove(item.assignment_id)} className="text-red-600" title="Delete assignment"><Trash2 size={16} /></button></td></tr>)}</tbody></table></div>{visible.length === 0 && <div className="p-10 text-center text-slate-500">No invigilation assignments.</div>}</div></div>;
 }

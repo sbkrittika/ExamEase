@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LogIn, Mail, Lock } from "lucide-react";
-
-const API_URL =
-  "https://examease-backend-r8s4.onrender.com";
+import { API_URL } from "../api";
 
 export default function Login() {
   const navigate = useNavigate();

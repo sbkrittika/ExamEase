@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Calendar, Clock, Plus } from 'lucide-react';
-
-const API_URL = 'https://examease-backend-r8s4.onrender.com';
+import { apiRequest } from '../api';
 
 export default function Exams() {
   const [exams, setExams] = useState([]);
@@ -10,8 +9,8 @@ export default function Exams() {
   const [form, setForm] = useState({ course_code: '', exam_date: '', start_time: '', end_time: '', total_students: '' });
 
   const loadData = () => Promise.all([
-    fetch(`${API_URL}/api/exams`).then((response) => response.json()),
-    fetch(`${API_URL}/api/courses`).then((response) => response.json())
+    apiRequest('/api/exams'),
+    apiRequest('/api/courses')
   ]).then(([examData, courseData]) => {
     setExams(examData.exams || []);
     setCourses(courseData.courses || []);
@@ -22,16 +21,8 @@ export default function Exams() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const response = await fetch(`${API_URL}/api/exams`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, created_by: user.user_id })
-    });
-    if (!response.ok) {
-      const data = await response.json();
-      alert(data.message || data.error || 'Unable to save exam.');
-      return;
-    }
+    try { await apiRequest('/api/exams', { method: 'POST', body: JSON.stringify({ ...form, created_by: user.user_id }) }); }
+    catch (error) { alert(error.message); return; }
     setForm({ course_code: '', exam_date: '', start_time: '', end_time: '', total_students: '' });
     setShowForm(false);
     loadData();
@@ -43,7 +34,7 @@ export default function Exams() {
       <button onClick={() => setShowForm(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2"><Plus size={18} />Schedule Exam</button>
     </div>
     {showForm && <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-100 p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-      <select required value={form.course_code} onChange={(e) => setForm({ ...form, course_code: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm"><option value="">Select course</option>{courses.map((course) => <option key={course.course_code} value={course.course_code}>{course.course_code}</option>)}</select>
+      <select required value={form.course_code} onChange={(e) => setForm({ ...form, course_code: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm"><option value="">Select course</option>{courses.map((course) => <option key={course.course_code} value={course.course_code}>{course.course_code} - {course.course_title}</option>)}</select>
       <input required type="date" value={form.exam_date} onChange={(e) => setForm({ ...form, exam_date: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm" />
       <input required type="time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm" />
       <input required type="time" value={form.end_time} onChange={(e) => setForm({ ...form, end_time: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm" />

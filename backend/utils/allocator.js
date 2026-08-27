@@ -22,7 +22,9 @@ function allocateStudents(students, roomIds, options = {}) {
     }
 
     // Prepare room objects
-    const rooms = roomIds.map(id => ({ id, students: [], courses: new Set() }));
+    const rooms = roomIds.map(room => typeof room === 'object' ?
+        { id: room.room_id, capacity: Number(room.capacity), students: [], courses: new Set() } :
+        { id: room, capacity: Number.POSITIVE_INFINITY, students: [], courses: new Set() });
 
     // Sort courses by descending student count to place large courses first
     const coursesBySize = Array.from(courseMap.entries()).sort((a, b) => b[1].length - a[1].length);
@@ -31,18 +33,15 @@ function allocateStudents(students, roomIds, options = {}) {
         for (const stud of studs) {
             // find candidate rooms where adding this student's course won't exceed maxCoursesPerRoom
             // prefer rooms that already have this course, then those with fewest students
-            let candidates = rooms.filter(r => r.courses.has(course));
+            let candidates = rooms.filter(r => r.courses.has(course) && r.students.length < r.capacity);
             if (candidates.length === 0) {
-                candidates = rooms.filter(r => r.courses.size < maxCoursesPerRoom);
+                candidates = rooms.filter(r => r.courses.size < maxCoursesPerRoom && r.students.length < r.capacity);
             }
             if (preferredRoomId) {
                 const preferred = candidates.filter(r => String(r.id) === String(preferredRoomId));
                 if (preferred.length > 0) candidates = preferred;
             }
-            if (candidates.length === 0) {
-                // as a fallback allow any room (shouldn't happen because of earlier check)
-                candidates = rooms;
-            }
+            if (candidates.length === 0) return { allocations: null, warnings: [`No room capacity or course slot remains for ${course}.`] };
             // choose room with minimal students
             candidates.sort((a, b) => a.students.length - b.students.length);
             const chosen = candidates[0];

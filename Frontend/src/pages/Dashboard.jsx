@@ -9,66 +9,55 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { apiRequest } from '../api';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [counts, setCounts] = useState({ students: 0, faculty: 0, courses: 0, rooms: 0, upcomingExams: 0 });
+  const [upcomingExams, setUpcomingExams] = useState([]);
+
+  useEffect(() => {
+    Promise.all([apiRequest('/api/data/dashboard'), apiRequest('/api/exams')])
+      .then(([summary, exams]) => {
+        setCounts(summary.counts || counts);
+        setUpcomingExams((exams.exams || []).filter((exam) => new Date(exam.exam_date) >= new Date()).slice(0, 3));
+      })
+      .catch(() => { setCounts({ students: 0, faculty: 0, courses: 0, rooms: 0, upcomingExams: 0 }); setUpcomingExams([]); });
+  }, []);
 
   const stats = [
     {
       title: 'Total Students',
-      value: '4,289',
+      value: counts.students,
       icon: Users,
       color: 'text-blue-600',
       bg: 'bg-blue-100',
-      trend: '+12%'
+      trend: ''
     },
     {
       title: 'Active Courses',
-      value: '156',
+      value: counts.courses,
       icon: BookOpen,
       color: 'text-emerald-600',
       bg: 'bg-emerald-100',
-      trend: '+3%'
+      trend: ''
     },
     {
       title: 'Faculty Members',
-      value: '312',
+      value: counts.faculty,
       icon: GraduationCap,
       color: 'text-violet-600',
       bg: 'bg-violet-100',
-      trend: '+5%'
+      trend: ''
     },
     {
       title: 'Exam Rooms',
-      value: '48',
+      value: counts.rooms,
       icon: School,
       color: 'text-amber-600',
       bg: 'bg-amber-100',
-      trend: '0%'
-    }
-  ];
-
-  const upcomingExams = [
-    {
-      course: 'CSE 311: Database Systems',
-      date: 'Aug 20, 2026',
-      time: '10:00 AM',
-      rooms: 4,
-      students: 120
-    },
-    {
-      course: 'CSE 312: Web Development',
-      date: 'Aug 21, 2026',
-      time: '02:00 PM',
-      rooms: 6,
-      students: 180
-    },
-    {
-      course: 'MTH 205: Mathematics',
-      date: 'Aug 22, 2026',
-      time: '10:00 AM',
-      rooms: 8,
-      students: 250
+      trend: ''
     }
   ];
 
@@ -122,7 +111,7 @@ export default function Dashboard() {
 
                 <div className="flex items-center space-x-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md text-xs font-medium">
                   <TrendingUp size={14} />
-                  <span>{stat.trend}</span>
+                  <span>{stat.trend || 'Database'}</span>
                 </div>
 
               </div>
@@ -163,7 +152,7 @@ export default function Dashboard() {
 
           <div className="divide-y divide-slate-100">
 
-            {upcomingExams.map((exam, idx) => (
+            {upcomingExams.length === 0 ? <div className="p-6 text-sm text-slate-500">No upcoming exams.</div> : upcomingExams.map((exam, idx) => (
 
               <div
                 key={idx}
@@ -173,13 +162,13 @@ export default function Dashboard() {
                 <div>
 
                   <h3 className="font-semibold text-slate-900 mb-1">
-                    {exam.course}
+                    {exam.course_code || 'Course not assigned'}
                   </h3>
 
                   <div className="flex items-center space-x-1 text-sm text-slate-500">
                     <Clock size={16} />
                     <span>
-                      {exam.date} at {exam.time}
+                      {exam.exam_date} at {exam.start_time} - {exam.end_time}
                     </span>
                   </div>
 
@@ -192,7 +181,7 @@ export default function Dashboard() {
                       Rooms
                     </p>
                     <p className="font-semibold text-slate-900">
-                      {exam.rooms}
+                      0
                     </p>
                   </div>
 
@@ -201,7 +190,7 @@ export default function Dashboard() {
                       Students
                     </p>
                     <p className="font-semibold text-slate-900">
-                      {exam.students}
+                      {exam.total_students || 0}
                     </p>
                   </div>
 

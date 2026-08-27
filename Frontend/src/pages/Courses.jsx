@@ -1,84 +1,14 @@
-import { useState } from 'react';
-import { Search, Plus, Edit2, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Search, Plus, Trash2 } from 'lucide-react';
+import { apiRequest } from '../api';
 
+const emptyForm = { course_code: '', section: 'A', course_title: '', semester: '1', department: '' };
 export default function Courses() {
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const courses = [
-    { code: 'CSE 311', title: 'Database Systems', credit: 3, department: 'CSE' },
-    { code: 'MTH 201', title: 'Linear Algebra', credit: 3, department: 'Mathematics' },
-    { code: 'PHY 101', title: 'Mechanics', credit: 4, department: 'Physics' },
-    { code: 'EEE 201', title: 'Electrical Circuits', credit: 3, department: 'EEE' },
-    { code: 'BBA 101', title: 'Principles of Management', credit: 3, department: 'BBA' },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Courses Management</h1>
-          <p className="text-slate-500 mt-1">Manage university courses, credits, and departments.</p>
-        </div>
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm shadow-blue-600/20 flex items-center space-x-2">
-          <Plus size={18} />
-          <span>Add Course</span>
-        </button>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="relative w-full sm:w-96">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search size={18} className="text-slate-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search by course code or title..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
-            />
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-semibold">
-                <th className="px-6 py-4">Course Code</th>
-                <th className="px-6 py-4">Course Title</th>
-                <th className="px-6 py-4">Credit</th>
-                <th className="px-6 py-4">Department</th>
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {courses.map((course) => (
-                <tr key={course.code} className="hover:bg-slate-50 transition-colors group">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900">{course.code}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{course.title}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{course.credit}.0</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
-                      {course.department}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                        <Edit2 size={16} />
-                      </button>
-                      <button className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
+  const [courses, setCourses] = useState([]); const [searchTerm, setSearchTerm] = useState(''); const [form, setForm] = useState(emptyForm); const [showForm, setShowForm] = useState(false); const [busy, setBusy] = useState(false); const [message, setMessage] = useState('');
+  const loadCourses = () => apiRequest('/api/courses').then((data) => setCourses(data.courses || []));
+  useEffect(() => { loadCourses().catch((error) => setMessage(error.message)); }, []);
+  const saveCourse = async (event) => { event.preventDefault(); setBusy(true); setMessage(''); try { await apiRequest('/api/courses', { method: 'POST', body: JSON.stringify(form) }); setForm(emptyForm); setShowForm(false); await loadCourses(); setMessage('Course added successfully.'); } catch (error) { setMessage(error.message); } finally { setBusy(false); } };
+  const removeCourse = async (code) => { if (!window.confirm('Delete this course?')) return; try { await apiRequest(`/api/courses/${encodeURIComponent(code)}`, { method: 'DELETE' }); await loadCourses(); } catch (error) { setMessage(error.message); } };
+  const visible = courses.filter((course) => `${course.course_code} ${course.course_title}`.toLowerCase().includes(searchTerm.toLowerCase()));
+  return <div className="space-y-6"><div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"><div><h1 className="text-2xl font-bold text-slate-900">Courses Management</h1><p className="text-slate-500 mt-1">Manage courses stored in the university database.</p></div><button onClick={() => setShowForm(!showForm)} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2"><Plus size={18} />Add Course</button></div>{message && <p className="text-sm text-slate-600">{message}</p>}{showForm && <form onSubmit={saveCourse} className="bg-white rounded-2xl border border-slate-100 p-6 grid grid-cols-1 md:grid-cols-5 gap-4">{[['course_code','Course code'],['section','Section'],['course_title','Course title'],['semester','Semester'],['department','Department']].map(([key, label]) => <input key={key} required={key !== 'section'} type={key === 'semester' ? 'number' : 'text'} placeholder={label} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm" />)}<div className="md:col-span-5 flex justify-end gap-3"><button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-xl bg-slate-100">Cancel</button><button disabled={busy} className="px-4 py-2 rounded-xl bg-blue-600 text-white">{busy ? 'Saving Course...' : 'Save Course'}</button></div></form>}<div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden"><div className="p-4 border-b border-slate-100"><div className="relative w-full sm:w-96"><Search size={18} className="absolute left-3 top-2.5 text-slate-400" /><input placeholder="Search by course code or title..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl text-sm outline-none" /></div></div><div className="overflow-x-auto"><table className="w-full text-left"><thead><tr className="bg-slate-50 text-xs uppercase text-slate-500"><th className="px-6 py-4">Course Code</th><th className="px-6 py-4">Title</th><th className="px-6 py-4">Section</th><th className="px-6 py-4">Department</th><th className="px-6 py-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{visible.map((course) => <tr key={`${course.course_code}-${course.section}`}><td className="px-6 py-4 text-sm font-medium">{course.course_code}</td><td className="px-6 py-4 text-sm">{course.course_title}</td><td className="px-6 py-4 text-sm">{course.section}</td><td className="px-6 py-4 text-sm">{course.department}</td><td className="px-6 py-4 text-right"><button onClick={() => removeCourse(course.course_code)} className="text-red-600" title="Delete course"><Trash2 size={16} /></button></td></tr>)}</tbody></table></div>{visible.length === 0 && <div className="p-10 text-center text-slate-500">No courses available.</div>}</div></div>;
 }

@@ -25,8 +25,7 @@ const addCourse = (req, res) => {
     `;
 
     db.query(
-        sql,
-        [course_code, section, course_title, semester, department],
+        sql, [course_code, section, course_title, semester, department],
         (err, result) => {
             if (err) {
                 if (err.code === "ER_DUP_ENTRY") {
@@ -82,8 +81,14 @@ const getCourses = (req, res) => {
     });
 };
 
+const deleteCourse = (req, res) => db.query("DELETE FROM courses WHERE course_code = ?", [req.params.code], (err, result) => {
+    if (err) return res.status(500).json({ success: false, message: "Failed to delete course.", error: err.message });
+    if (!result.affectedRows) return res.status(404).json({ success: false, message: "Course not found." });
+    res.json({ success: true, message: "Course deleted successfully." });
+});
 
 module.exports = {
     addCourse,
-    getCourses
+    getCourses,
+    deleteCourse
 };

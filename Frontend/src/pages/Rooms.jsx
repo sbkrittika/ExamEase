@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Search } from 'lucide-react';
-
-const API_URL = 'https://examease-backend-r8s4.onrender.com';
+import { Search, Plus, Trash2 } from 'lucide-react';
+import { apiRequest } from '../api';
 
 export default function Rooms() {
   const [searchTerm, setSearchTerm] = useState('');
   const [rooms, setRooms] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ room_number: '', building: '', capacity: '' });
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
-    fetch(`${API_URL}/api/data/rooms`)
-      .then((response) => response.json())
-      .then((data) => setRooms(data.rooms || []))
-      .catch(() => setRooms([]));
+    apiRequest('/api/data/rooms').then((data) => setRooms(data.rooms || [])).catch((error) => setMessage(error.message));
   }, []);
+  const loadRooms = () => apiRequest('/api/data/rooms').then((data) => setRooms(data.rooms || []));
+  const saveRoom = async (event) => { event.preventDefault(); try { await apiRequest('/api/data/rooms', { method: 'POST', body: JSON.stringify(form) }); setForm({ room_number: '', building: '', capacity: '' }); setShowForm(false); await loadRooms(); setMessage('Room added successfully.'); } catch (error) { setMessage(error.message); } };
+  const removeRoom = async (id) => { if (!window.confirm('Delete this room?')) return; try { await apiRequest(`/api/data/rooms/${id}`, { method: 'DELETE' }); await loadRooms(); } catch (error) { setMessage(error.message); } };
 
   const visibleRooms = rooms.filter((room) =>
     `${room.room_number} ${room.building}`.toLowerCase().includes(searchTerm.toLowerCase())
@@ -25,7 +27,11 @@ export default function Rooms() {
           <h1 className="text-2xl font-bold text-slate-900">Room Management</h1>
           <p className="text-slate-500 mt-1">Manage university buildings, rooms, and their capacities.</p>
         </div>
+        <button onClick={() => setShowForm(!showForm)} className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2"><Plus size={18} />Add Room</button>
       </div>
+
+      {message && <p className="text-sm text-slate-600">{message}</p>}
+      {showForm && <form onSubmit={saveRoom} className="bg-white rounded-2xl border border-slate-100 p-6 grid grid-cols-1 md:grid-cols-3 gap-4"><input required placeholder="Room number" value={form.room_number} onChange={(e) => setForm({ ...form, room_number: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm" /><input placeholder="Building" value={form.building} onChange={(e) => setForm({ ...form, building: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm" /><input required min="1" type="number" placeholder="Capacity" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} className="border border-slate-200 rounded-xl px-3 py-2.5 text-sm" /><button className="md:col-span-3 justify-self-end px-4 py-2 rounded-xl bg-blue-600 text-white">Save Room</button></form>}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -69,7 +75,7 @@ export default function Rooms() {
                       {room.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-slate-400">Managed from university records</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right"><button onClick={() => removeRoom(room.room_id)} className="text-red-600" title="Delete room"><Trash2 size={16} /></button></td>
                 </tr>
               ))}
             </tbody>

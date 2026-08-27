@@ -1,3 +1,5 @@
 node_modules/
 .env
 dist/
+mysql-data/
+backend/mysql-data/

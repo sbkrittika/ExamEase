@@ -90,11 +90,16 @@ const mySchedule = async (req, res) => {
         const [userRows] = await db.promise().query("SELECT user_id,full_name,email,role,department,designation FROM users WHERE user_id=?", [req.user.user_id]);
         if (!userRows.length) return res.status(404).json({ success: false, message: "User not found." });
         const [allocations] = await db.promise().query(
-            `SELECT a.exam_id,a.student_id,a.course_code,a.room_id,a.row_no,a.column_no,a.seat_no,
-                    e.exam_date,e.start_time,e.end_time,r.room_number,r.building
-             FROM seat_allocations a JOIN exams e ON e.exam_id=a.exam_id
-             LEFT JOIN rooms r ON r.room_id=a.room_id
-             WHERE a.student_id=? ORDER BY e.exam_date,e.start_time`,
+            `SELECT a.exam_id,e.exam_date,e.start_time,e.end_time,
+                   r.room_number,
+                   COALESCE(GROUP_CONCAT(DISTINCT u.full_name ORDER BY u.full_name SEPARATOR ', '), 'Not assigned') AS invigilator
+            FROM seat_allocations a JOIN exams e ON e.exam_id=a.exam_id
+            LEFT JOIN rooms r ON r.room_id=a.room_id
+            LEFT JOIN invigilator_assignments ia ON ia.exam_id=a.exam_id AND ia.room_id=a.room_id
+            LEFT JOIN users u ON u.user_id=ia.faculty_id
+            WHERE a.student_id=?
+            GROUP BY a.exam_id,e.exam_date,e.start_time,e.end_time,r.room_number
+            ORDER BY e.exam_date,e.start_time`,
             [req.user.email.split("@")[0]]
         );
         res.json({ success: true, user: userRows[0], schedule: allocations });

@@ -26,6 +26,6 @@ router.post('/upload-zip', allowRoles("faculty"), upload.single('file'), uploadZ
 
 // Allocate students to rooms
 router.post('/allocate', allowRoles("faculty"), allocate);
-router.get("/:id/allocations", getAllocations);
+router.get("/:id/allocations", allowRoles("faculty"), getAllocations);
 
 module.exports = router;

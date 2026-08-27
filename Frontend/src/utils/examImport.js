@@ -66,7 +66,6 @@ export async function importStudentListFromZip(file) {
 
   const courseRow = rows.find((row) => {
     const firstCell = normalizeText(row[0]);
-    const secondCell = normalizeText(row[1]);
     return firstCell.toLowerCase() === 'course' || firstCell.toLowerCase() === 'class';
   });
 

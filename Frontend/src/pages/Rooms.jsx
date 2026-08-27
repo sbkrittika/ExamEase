@@ -1,28 +1,20 @@
 ﻿import { useEffect, useState } from 'react';
 import { Search, Plus, Edit2, Trash2, X } from 'lucide-react';
-
-const STORAGE_KEY = 'examease-rooms';
+import { apiRequest } from '../api';
 
 export default function Rooms() {
   const [searchTerm, setSearchTerm] = useState('');
   const [rooms, setRooms] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ building: 'Building A', roomNumber: '', capacity: '40', type: 'Classroom', status: 'Available' });
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setRooms(JSON.parse(saved));
-      } catch {
-        setRooms([]);
-      }
-    }
+    apiRequest('/api/rooms').then((data) => setRooms((data.rooms || []).map((room) => ({
+      id: room.room_id, building: room.building || 'Building', roomNumber: room.room_number,
+      capacity: room.capacity, type: 'Classroom', status: room.status
+    })))).catch((err) => setError(err.message));
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
-  }, [rooms]);
 
   const filtered = rooms.filter((room) => {
     const q = searchTerm.toLowerCase();
@@ -33,8 +25,12 @@ export default function Rooms() {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
+  const handleEdit = (room) => {
+    setForm({ building: room.building, roomNumber: room.roomNumber, capacity: String(room.capacity), type: room.type, status: room.status });
+    setShowForm(true);
+  };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     if (!form.roomNumber.trim()) {
       alert('Room number is required.');
@@ -50,7 +46,13 @@ export default function Rooms() {
       status: form.status,
     };
 
-    setRooms((prev) => [newRoom, ...prev]);
+    try {
+      const data = await apiRequest('/api/rooms', { method: 'POST', body: JSON.stringify({
+        room_number: newRoom.roomNumber, building: newRoom.building, capacity: newRoom.capacity,
+        status: newRoom.status === 'Available' ? 'Available' : 'Unavailable'
+      }) });
+      setRooms((prev) => [{ ...newRoom, id: data.room_id || newRoom.id }, ...prev.filter((room) => room.roomNumber !== newRoom.roomNumber)]);
+    } catch (err) { setError(err.message); return; }
     setForm({ building: 'Building A', roomNumber: '', capacity: '40', type: 'Classroom', status: 'Available' });
     setShowForm(false);
   };
@@ -62,6 +64,7 @@ export default function Rooms() {
           <h1 className="text-2xl font-bold text-slate-900">Room Management</h1>
           <p className="text-slate-500 mt-1">Add and manage real exam rooms.</p>
         </div>
+        {error && <div className="rounded-xl bg-red-50 text-red-700 px-4 py-3">{error}</div>}
         <button type="button" onClick={() => setShowForm((prev) => !prev)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm shadow-blue-600/20 flex items-center space-x-2"><Plus size={18} /><span>{showForm ? 'Close' : 'Add Room'}</span></button>
       </div>
 
@@ -92,7 +95,7 @@ export default function Rooms() {
               <thead><tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-semibold"><th className="px-6 py-4">Building</th><th className="px-6 py-4">Room Number</th><th className="px-6 py-4">Capacity</th><th className="px-6 py-4">Type</th><th className="px-6 py-4">Status</th><th className="px-6 py-4 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((room) => (
-                  <tr key={room.id} className="hover:bg-slate-50 transition-colors group"><td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{room.building}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{room.roomNumber}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{room.capacity} students</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{room.type}</td><td className="px-6 py-4 whitespace-nowrap"><span className={`px-2.5 py-1 rounded-md text-xs font-medium border ${room.status === 'Available' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>{room.status}</span></td><td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><div className="flex items-center justify-end space-x-2"><button type="button" className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button><button type="button" onClick={() => setRooms((prev) => prev.filter((item) => item.id !== room.id))} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button></div></td></tr>
+                  <tr key={room.id} className="hover:bg-slate-50 transition-colors group"><td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{room.building}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{room.roomNumber}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{room.capacity} students</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{room.type}</td><td className="px-6 py-4 whitespace-nowrap"><span className={`px-2.5 py-1 rounded-md text-xs font-medium border ${room.status === 'Available' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>{room.status}</span></td><td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><div className="flex items-center justify-end space-x-2"><button type="button" onClick={() => handleEdit(room)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button><button type="button" onClick={async () => { try { await apiRequest(`/api/rooms/${room.id}`, { method: 'DELETE' }); setRooms((prev) => prev.filter((item) => item.id !== room.id)); } catch (err) { setError(err.message); } }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button></div></td></tr>
                 ))}
               </tbody>
             </table>

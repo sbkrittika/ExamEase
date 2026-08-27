@@ -1,19 +1,25 @@
 ﻿import { Users, BookOpen, GraduationCap, School, TrendingUp, Clock, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { apiRequest } from '../api';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => { apiRequest('/api/dashboard').then(setData).catch((err) => setError(err.message)); }, []);
+  const counts = data?.stats || {};
 
   const stats = [
-    { title: 'Total Students', value: '0', icon: Users, color: 'text-blue-600', bg: 'bg-blue-100', trend: 'Live' },
-    { title: 'Active Courses', value: '0', icon: BookOpen, color: 'text-emerald-600', bg: 'bg-emerald-100', trend: 'Live' },
-    { title: 'Faculty Members', value: '0', icon: GraduationCap, color: 'text-violet-600', bg: 'bg-violet-100', trend: 'Live' },
-    { title: 'Exam Rooms', value: '0', icon: School, color: 'text-amber-600', bg: 'bg-amber-100', trend: 'Live' },
+    { title: 'Total Students', value: counts.students ?? '—', icon: Users, color: 'text-blue-600', bg: 'bg-blue-100', trend: 'Live' },
+    { title: 'Active Courses', value: counts.courses ?? '—', icon: BookOpen, color: 'text-emerald-600', bg: 'bg-emerald-100', trend: 'Live' },
+    { title: 'Faculty Members', value: counts.faculty ?? '—', icon: GraduationCap, color: 'text-violet-600', bg: 'bg-violet-100', trend: 'Live' },
+    { title: 'Exam Rooms', value: counts.rooms ?? '—', icon: School, color: 'text-amber-600', bg: 'bg-amber-100', trend: 'Live' },
   ];
 
-  const upcomingExams = [
-    { course: 'No exam scheduled yet', date: 'Please add an exam', time: '—', rooms: 0, students: 0 },
-  ];
+  const upcomingExams = (data?.upcoming || []).map((exam) => ({
+    course: exam.course_code || 'Exam', date: exam.exam_date, time: exam.start_time, rooms: '—', students: exam.students
+  }));
 
   const handleGenerateSeatPlan = () => {
     navigate('/admin/seat-plan');
@@ -36,6 +42,8 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {error && <div className="rounded-xl bg-red-50 border border-red-200 text-red-700 px-4 py-3">{error}</div>}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
@@ -46,7 +54,6 @@ export default function Dashboard() {
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.bg}`}>
                   <Icon size={24} className={stat.color} />
                 </div>
-
                 <div className="flex items-center space-x-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md text-xs font-medium">
                   <TrendingUp size={14} />
                   <span>{stat.trend}</span>
@@ -67,7 +74,7 @@ export default function Dashboard() {
         </div>
 
         <div className="divide-y divide-slate-100">
-          {upcomingExams.map((exam, idx) => (
+          {upcomingExams.length ? upcomingExams.map((exam, idx) => (
             <div key={idx} className="p-6 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 className="font-semibold text-slate-900 mb-1">{exam.course}</h3>
@@ -88,7 +95,7 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-          ))}
+          )) : <div className="p-8 text-center text-slate-500">No upcoming exams scheduled.</div>}
         </div>
       </div>
     </div>

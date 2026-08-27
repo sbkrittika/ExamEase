@@ -1,8 +1,6 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Plus, Edit2, Trash2, Upload, X } from 'lucide-react';
-import { importStudentListFromZip } from '../utils/examImport';
-
-const STORAGE_KEY = 'examease-courses';
+import { apiRequest } from '../api';
 
 export default function Courses() {
   const fileInputRef = useRef(null);
@@ -14,19 +12,10 @@ export default function Courses() {
   const [form, setForm] = useState({ code: '', title: '', credit: '3', department: 'CSE' });
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setCourses(JSON.parse(saved));
-      } catch {
-        setCourses([]);
-      }
-    }
+    apiRequest('/api/courses').then((data) => setCourses((data.courses || []).map((course) => ({
+      code: course.course_code, title: course.course_title, credit: course.credit || 3, department: course.department, section: course.section
+    })))).catch((error) => setStatus(error.message));
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(courses));
-  }, [courses]);
 
   const filtered = useMemo(() => {
     const q = searchTerm.toLowerCase();
@@ -37,8 +26,12 @@ export default function Courses() {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
+  const handleEdit = (course) => {
+    setForm({ code: course.code, title: course.title, credit: String(course.credit || 3), department: course.department });
+    setShowForm(true);
+  };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     if (!form.code || !form.title) {
       alert('Course code and title are required.');
@@ -52,6 +45,11 @@ export default function Courses() {
       department: form.department,
     };
 
+    try {
+      await apiRequest('/api/courses', { method: 'POST', body: JSON.stringify({
+        course_code: newCourse.code, section: 'A', course_title: newCourse.title, semester: 1, department: newCourse.department
+      }) });
+    } catch (error) { setStatus(error.message); return; }
     setCourses((prev) => {
       const index = prev.findIndex((item) => item.code === newCourse.code);
       if (index >= 0) {
@@ -75,13 +73,13 @@ export default function Courses() {
     setStatus('');
 
     try {
-      const result = await importStudentListFromZip(file);
-      if (!result.courses.length) {
-        throw new Error('No course information found in the ZIP.');
-      }
-
-      setCourses(result.courses);
-      setStatus(`Imported ${result.courses.length} course from ${file.name}.`);
+      const payload = new FormData();
+      payload.append('file', file);
+      const result = await apiRequest('/api/exams/upload-zip', { method: 'POST', body: payload });
+      const imported = [...new Set((result.students || []).map((student) => student.course_code).filter(Boolean))]
+        .map((code) => ({ code, title: code, credit: 3, department: 'General' }));
+      setCourses(imported);
+      setStatus(`Imported ${imported.length} courses from ${file.name}.`);
     } catch (error) {
       alert(error.message || 'Unable to import the ZIP.');
       setStatus('');
@@ -133,7 +131,7 @@ export default function Courses() {
               <thead><tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-semibold"><th className="px-6 py-4">Course Code</th><th className="px-6 py-4">Course Title</th><th className="px-6 py-4">Credit</th><th className="px-6 py-4">Department</th><th className="px-6 py-4 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((course) => (
-                  <tr key={course.code} className="hover:bg-slate-50 transition-colors group"><td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900">{course.code}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{course.title}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{course.credit}.0</td><td className="px-6 py-4 whitespace-nowrap"><span className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">{course.department}</span></td><td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><div className="flex items-center justify-end space-x-2"><button type="button" className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button><button type="button" onClick={() => setCourses((prev) => prev.filter((item) => item.code !== course.code))} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button></div></td></tr>
+                  <tr key={course.code} className="hover:bg-slate-50 transition-colors group"><td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900">{course.code}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{course.title}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{course.credit}.0</td><td className="px-6 py-4 whitespace-nowrap"><span className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">{course.department}</span></td><td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><div className="flex items-center justify-end space-x-2"><button type="button" onClick={() => handleEdit(course)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button><button type="button" onClick={async () => { try { await apiRequest(`/api/courses/${encodeURIComponent(course.code)}/A`, { method: 'DELETE' }); setCourses((prev) => prev.filter((item) => item.code !== course.code)); } catch (error) { setStatus(error.message); } }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button></div></td></tr>
                 ))}
               </tbody>
             </table>

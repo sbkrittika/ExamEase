@@ -1,8 +1,6 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Plus, Edit2, Trash2, Upload, X } from 'lucide-react';
-import { importStudentListFromZip } from '../utils/examImport';
-
-const STORAGE_KEY = 'examease-students';
+import { apiRequest } from '../api';
 
 export default function Students() {
   const fileInputRef = useRef(null);
@@ -14,19 +12,11 @@ export default function Students() {
   const [form, setForm] = useState({ id: '', name: '', email: '', department: 'CSE', year: '1st' });
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setStudents(JSON.parse(saved));
-      } catch {
-        setStudents([]);
-      }
-    }
+    apiRequest('/api/students').then((data) => setStudents((data.students || []).map((student) => ({
+      id: student.student_id, name: student.student_name, email: `${student.student_id}@eastdelta.edu.bd`,
+      department: student.course_code || 'General', year: student.semester
+    })))).catch((error) => setStatus(error.message));
   }, []);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(students));
-  }, [students]);
 
   const filtered = useMemo(() => {
     const q = searchTerm.toLowerCase();
@@ -40,8 +30,12 @@ export default function Students() {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
+  const handleEdit = (student) => {
+    setForm({ id: student.id, name: student.name, email: student.email, department: student.department, year: String(student.year || '1st') });
+    setShowForm(true);
+  };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     if (!form.id || !form.name || !form.email) {
       alert('Student ID, name and email are required.');
@@ -56,7 +50,12 @@ export default function Students() {
       year: form.year,
     };
 
-    setStudents((prev) => [newStudent, ...prev]);
+    try {
+      await apiRequest('/api/students', { method: 'POST', body: JSON.stringify({
+        student_id: newStudent.id, student_name: newStudent.name, semester: Number(form.year.replace(/\D/g, '')) || 1, course_code: newStudent.department
+      }) });
+      setStudents((prev) => [newStudent, ...prev.filter((item) => item.id !== newStudent.id)]);
+    } catch (error) { setStatus(error.message); return; }
     setForm({ id: '', name: '', email: '', department: 'CSE', year: '1st' });
     setShowForm(false);
     setStatus('Student added successfully.');
@@ -70,13 +69,11 @@ export default function Students() {
     setStatus('');
 
     try {
-      const result = await importStudentListFromZip(file);
-      if (!result.students.length) {
-        throw new Error('No student rows were found in the uploaded ZIP.');
-      }
-
-      setStudents(result.students);
-      setStatus(`Imported ${result.students.length} students from ${file.name}.`);
+      const payload = new FormData();
+      payload.append('file', file);
+      const result = await apiRequest('/api/exams/upload-zip', { method: 'POST', body: payload });
+      setStudents((result.students || []).map((student) => ({ id: student.student_id, name: student.student_name, email: `${student.student_id}@eastdelta.edu.bd`, department: student.course_code || 'General', year: student.semester })));
+      setStatus(`Imported ${result.imported || 0} students from ${file.name}.`);
     } catch (error) {
       alert(error.message || 'Unable to import the ZIP.');
       setStatus('');
@@ -176,7 +173,7 @@ export default function Students() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{student.email}</td>
                     <td className="px-6 py-4 whitespace-nowrap"><span className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">{student.department}</span></td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{student.year}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><div className="flex items-center justify-end space-x-2"><button type="button" className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button><button type="button" onClick={() => setStudents((prev) => prev.filter((item) => item.id !== student.id))} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button></div></td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><div className="flex items-center justify-end space-x-2"><button type="button" onClick={() => handleEdit(student)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button><button type="button" onClick={async () => { try { await apiRequest(`/api/students/${student.id}`, { method: 'DELETE' }); setStudents((prev) => prev.filter((item) => item.id !== student.id)); } catch (error) { setStatus(error.message); } }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button></div></td>
                   </tr>
                 ))}
               </tbody>

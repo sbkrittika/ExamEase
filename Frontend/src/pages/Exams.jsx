@@ -1,19 +1,7 @@
-﻿import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus, Calendar, Clock, Edit2, Trash2, X, UploadCloud } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://examease-backend-r8s4.onrender.com';
-
-const sampleStudents = [
-  { id: '2023001', name: 'Alice Johnson', course: 'CSE 311' },
-  { id: '2023002', name: 'Bob Smith', course: 'MTH 201' },
-  { id: '2023003', name: 'Charlie Brown', course: 'PHY 101' },
-  { id: '2023004', name: 'Diana Prince', course: 'BBA 101' },
-  { id: '2023005', name: 'Evan Wright', course: 'CSE 311' },
-  { id: '2023006', name: 'Frank Green', course: 'EEE 201' },
-  { id: '2023007', name: 'Grace Lee', course: 'MTH 201' },
-  { id: '2023008', name: 'Henry Wood', course: 'PHY 101' },
-  { id: '2023009', name: 'Ivy Martin', course: 'CSE 311' },
-];
+import { apiRequest } from '../api';
 
 function autoAllocateStudents(students, roomCount, maxCoursesPerRoom = 4) {
   if (!Array.isArray(students) || students.length === 0 || !roomCount) {
@@ -49,21 +37,15 @@ function autoAllocateStudents(students, roomCount, maxCoursesPerRoom = 4) {
 }
 
 export default function Exams() {
-  const [exams, setExams] = useState([
-    {
-      id: 1,
-      course: 'CSE 311: Database Systems',
-      date: '2026-10-24',
-      time: '10:00',
-      duration: '2 Hours',
-      roomCount: 2,
-      status: 'Scheduled',
-      allocation: [
-        { room: 'Room 1', students: [{ id: '2023001', name: 'Alice Johnson', course: 'CSE 311' }] },
-        { room: 'Room 2', students: [{ id: '2023005', name: 'Evan Wright', course: 'CSE 311' }] }
-      ]
-    }
-  ]);
+  const [exams, setExams] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    Promise.all([apiRequest('/api/exams'), apiRequest('/api/courses')]).then(([examData, courseData]) => {
+      setExams((examData.exams || []).map((exam) => ({ id: exam.exam_id, course: exam.course_code, date: exam.exam_date, time: exam.start_time, duration: '', roomCount: 0, status: 'Scheduled', allocation: [] })));
+      setCourses(courseData.courses || []);
+    }).catch((err) => setError(err.message));
+  }, []);
 
   const [form, setForm] = useState({
     course: '',
@@ -71,7 +53,7 @@ export default function Exams() {
     time: '',
     duration: '2 Hours',
     roomCount: '2',
-    studentList: sampleStudents.map((s) => `${s.id},${s.course}`).join('\n')
+    studentList: ''
   });
 
   const [editingId, setEditingId] = useState(null);
@@ -99,16 +81,7 @@ export default function Exams() {
 
     try {
       setIsImportingZip(true);
-      const response = await fetch(`${API_URL}/api/exams/upload-zip`, {
-        method: 'POST',
-        body: formData
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.error || data?.message || 'ZIP import failed.');
-      }
+      const data = await apiRequest('/api/exams/upload-zip', { method: 'POST', body: formData });
 
       const importedRows = Array.isArray(data?.students) ? data.students : [];
 
@@ -134,12 +107,12 @@ export default function Exams() {
   };
 
   const resetForm = () => {
-    setForm({ course: '', date: '', time: '', duration: '2 Hours', roomCount: '2', studentList: sampleStudents.map((s) => `${s.id},${s.course}`).join('\n') });
+    setForm({ course: '', date: '', time: '', duration: '2 Hours', roomCount: '2', studentList: '' });
     setEditingId(null);
     setShowForm(false);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.course || !form.date || !form.time || !form.studentList) {
       alert('Please fill in course, date, time and student list.');
@@ -147,7 +120,7 @@ export default function Exams() {
     }
 
     const parsedStudents = form.studentList
-      .split(/\n|,/)
+      .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean)
       .map((entry, index) => {
@@ -170,6 +143,19 @@ export default function Exams() {
       allocation
     };
 
+    try {
+      const [hours, minutes] = form.time.split(':').map(Number);
+      const durationHours = Number.parseInt(form.duration, 10) || 2;
+      const end = new Date(2000, 0, 1, hours, minutes);
+      end.setHours(end.getHours() + durationHours);
+      const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
+      const response = await apiRequest('/api/exams', { method: editingId ? 'PUT' : 'POST', body: JSON.stringify({
+        exam_date: form.date, start_time: form.time, end_time: endTime,
+        exam_type: form.duration, course_code: form.course.split(':')[0].trim(),
+        total_students: parsedStudents.length
+      }) });
+      newExam.id = response.exam_id || editingId;
+    } catch (err) { setError(err.message); return; }
     if (editingId) {
       setExams((prev) => prev.map((exam) => (exam.id === editingId ? newExam : exam)));
     } else {
@@ -192,10 +178,10 @@ export default function Exams() {
     setShowForm(true);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     const confirmed = window.confirm('Are you sure you want to delete this exam?');
     if (!confirmed) return;
-    setExams((prev) => prev.filter((exam) => exam.id !== id));
+    try { await apiRequest(`/api/exams/${id}`, { method: 'DELETE' }); setExams((prev) => prev.filter((exam) => exam.id !== id)); } catch (err) { setError(err.message); }
   };
 
   const formatDate = (date) => {
@@ -218,6 +204,7 @@ export default function Exams() {
           <h1 className="text-2xl font-bold text-slate-900">Exam Scheduling</h1>
           <p className="text-slate-500 mt-1">Create and manage upcoming examinations.</p>
         </div>
+        {error && <div className="rounded-xl bg-red-50 text-red-700 px-4 py-3">{error}</div>}
 
         <div className="flex flex-wrap items-center gap-3">
           <button
@@ -257,11 +244,7 @@ export default function Exams() {
               <label className="block text-sm font-medium text-slate-700 mb-1">Course *</label>
               <select name="course" value={form.course} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
                 <option value="">Select a course...</option>
-                <option value="CSE 311: Database Systems">CSE 311: Database Systems</option>
-                <option value="CSE 312: Web Development">CSE 312: Web Development</option>
-                <option value="MTH 201: Linear Algebra">MTH 201: Linear Algebra</option>
-                <option value="PHY 101: Mechanics">PHY 101: Mechanics</option>
-                <option value="EEE 201: Electrical Circuits">EEE 201: Electrical Circuits</option>
+                {courses.map((course) => <option key={`${course.course_code}-${course.section}`} value={`${course.course_code}: ${course.course_title}`}>{course.course_code}: {course.course_title}</option>)}
               </select>
             </div>
             <div>
@@ -287,7 +270,7 @@ export default function Exams() {
             </div>
             <div className="md:col-span-2 lg:col-span-3">
               <label className="block text-sm font-medium text-slate-700 mb-1">Student IDs / list</label>
-              <textarea name="studentList" rows="4" value={form.studentList} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder={'2023001, CSE 311\n2023002, MTH 201\n2023003, PHY 101'} />
+              <textarea name="studentList" rows="4" value={form.studentList} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="One student ID per line, optionally followed by course code" />
             </div>
             <div className="md:col-span-2 lg:col-span-4 flex justify-end gap-3 pt-2">
               <button type="button" onClick={resetForm} className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200">Cancel</button>

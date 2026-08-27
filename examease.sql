@@ -32,7 +32,8 @@ CREATE TABLE `courses` (
   `section` varchar(10) NOT NULL,
   `course_title` varchar(100) NOT NULL,
   `semester` int(11) NOT NULL,
-  `department` varchar(30) NOT NULL
+  `department` varchar(30) NOT NULL,
+  `credit` decimal(3,1) NOT NULL DEFAULT 3.0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -132,6 +133,7 @@ CREATE TABLE `users` (
   `full_name` varchar(100) NOT NULL,
   `email` varchar(100) NOT NULL,
   `password` varchar(255) NOT NULL,
+  `role` enum('student','faculty') NOT NULL DEFAULT 'faculty',
   `designation` varchar(50) DEFAULT NULL,
   `department` varchar(30) NOT NULL,
   `phone` varchar(20) DEFAULT NULL,

@@ -4,8 +4,13 @@ const mysql = require('mysql2/promise');
 require('dotenv').config({ path: path.join(__dirname, '..', 'backend', '.env') });
 
 const projectRoot = path.join(__dirname, '..');
-const studentListPath = path.join(projectRoot, '..', 'Sample Student List.md');
-const seatPlanPath = path.join(projectRoot, '..', 'Sample Seat Plan.md');
+const trackedSamples = path.join(projectRoot, 'database', 'samples');
+const studentListPath = fs.existsSync(path.join(trackedSamples, 'Sample Student List.md')) ?
+    path.join(trackedSamples, 'Sample Student List.md') :
+    path.join(projectRoot, '..', 'Sample Student List.md');
+const seatPlanPath = fs.existsSync(path.join(trackedSamples, 'Sample Seat Plan.md')) ?
+    path.join(trackedSamples, 'Sample Seat Plan.md') :
+    path.join(projectRoot, '..', 'Sample Seat Plan.md');
 const rooms = new Set();
 const courses = new Map();
 const students = new Map();

@@ -10,7 +10,8 @@ import {
     Building2,
     ArrowLeft
 } from "lucide-react";
-import { API_URL } from "../api";
+
+const API_URL = import.meta.env.VITE_API_URL || "https://examease-backend-r8s4.onrender.com";
 
 export default function Register() {
     const navigate = useNavigate();
@@ -59,10 +60,10 @@ export default function Register() {
 
         if (
             formData.role === "faculty" &&
-            !/^[a-z]+(?:[._-][a-z]+)+@eastdelta\.edu\.bd$/i.test(email)
+            !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@eastdelta\.edu\.bd$/i.test(email)
         ) {
             alert(
-                "Please enter a valid faculty email. Example: jahidul.h@eastdelta.edu.bd"
+                "Faculty email must use the @eastdelta.edu.bd university domain."
             );
             return;
         }

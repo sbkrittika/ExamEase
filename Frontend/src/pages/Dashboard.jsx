@@ -1,65 +1,25 @@
-import {
-  Users,
-  BookOpen,
-  GraduationCap,
-  School,
-  TrendingUp,
-  Clock,
-  Bot,
-  ArrowRight
-} from 'lucide-react';
+﻿import { Users, BookOpen, GraduationCap, School, TrendingUp, Clock, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../api';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [counts, setCounts] = useState({ students: 0, faculty: 0, courses: 0, rooms: 0, upcomingExams: 0 });
-  const [upcomingExams, setUpcomingExams] = useState([]);
-
-  useEffect(() => {
-    Promise.all([apiRequest('/api/data/dashboard'), apiRequest('/api/exams')])
-      .then(([summary, exams]) => {
-        setCounts(summary.counts || counts);
-        setUpcomingExams((exams.exams || []).filter((exam) => new Date(exam.exam_date) >= new Date()).slice(0, 3));
-      })
-      .catch(() => { setCounts({ students: 0, faculty: 0, courses: 0, rooms: 0, upcomingExams: 0 }); setUpcomingExams([]); });
-  }, []);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => { apiRequest('/api/dashboard').then(setData).catch((err) => setError(err.message)); }, []);
+  const counts = data?.stats || {};
 
   const stats = [
-    {
-      title: 'Total Students',
-      value: counts.students,
-      icon: Users,
-      color: 'text-blue-600',
-      bg: 'bg-blue-100',
-      trend: ''
-    },
-    {
-      title: 'Active Courses',
-      value: counts.courses,
-      icon: BookOpen,
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-100',
-      trend: ''
-    },
-    {
-      title: 'Faculty Members',
-      value: counts.faculty,
-      icon: GraduationCap,
-      color: 'text-violet-600',
-      bg: 'bg-violet-100',
-      trend: ''
-    },
-    {
-      title: 'Exam Rooms',
-      value: counts.rooms,
-      icon: School,
-      color: 'text-amber-600',
-      bg: 'bg-amber-100',
-      trend: ''
-    }
+    { title: 'Total Students', value: counts.students ?? '—', icon: Users, color: 'text-blue-600', bg: 'bg-blue-100', trend: 'Live' },
+    { title: 'Active Courses', value: counts.courses ?? '—', icon: BookOpen, color: 'text-emerald-600', bg: 'bg-emerald-100', trend: 'Live' },
+    { title: 'Faculty Members', value: counts.faculty ?? '—', icon: GraduationCap, color: 'text-violet-600', bg: 'bg-violet-100', trend: 'Live' },
+    { title: 'Exam Rooms', value: counts.rooms ?? '—', icon: School, color: 'text-amber-600', bg: 'bg-amber-100', trend: 'Live' },
   ];
+
+  const upcomingExams = (data?.upcoming || []).map((exam) => ({
+    course: exam.course_code || 'Exam', date: exam.exam_date, time: exam.start_time, rooms: '—', students: exam.students
+  }));
 
   const handleGenerateSeatPlan = () => {
     navigate('/admin/seat-plan');
@@ -67,17 +27,10 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Dashboard Overview
-          </h1>
-
-          <p className="text-slate-500 mt-1">
-            Welcome back, here's what's happening today.
-          </p>
+          <h1 className="text-2xl font-bold text-slate-900">Dashboard Overview</h1>
+          <p className="text-slate-500 mt-1">Welcome back, here's the current exam status.</p>
         </div>
 
         <button
@@ -89,172 +42,62 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {error && <div className="rounded-xl bg-red-50 border border-red-200 text-red-700 px-4 py-3">{error}</div>}
 
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
 
           return (
-            <div
-              key={index}
-              className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow"
-            >
-
+            <div key={index} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-4">
-
-                <div
-                  className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.bg}`}
-                >
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.bg}`}>
                   <Icon size={24} className={stat.color} />
                 </div>
-
                 <div className="flex items-center space-x-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md text-xs font-medium">
                   <TrendingUp size={14} />
-                  <span>{stat.trend || 'Database'}</span>
+                  <span>{stat.trend}</span>
                 </div>
-
               </div>
 
-              <h3 className="text-3xl font-bold text-slate-900 mb-1">
-                {stat.value}
-              </h3>
-
-              <p className="text-sm text-slate-500 font-medium">
-                {stat.title}
-              </p>
-
+              <h3 className="text-3xl font-bold text-slate-900 mb-1">{stat.value}</h3>
+              <p className="text-sm text-slate-500 font-medium">{stat.title}</p>
             </div>
           );
         })}
-
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-slate-900">Upcoming Exams</h2>
+          <button onClick={() => navigate('/admin/exams')} className="text-sm text-blue-600 font-medium hover:text-blue-700">View All</button>
+        </div>
 
-        {/* Upcoming Exams */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 col-span-1 lg:col-span-2 overflow-hidden">
-
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-
-            <h2 className="text-lg font-bold text-slate-900">
-              Upcoming Exams
-            </h2>
-
-            <button
-              onClick={() => navigate('/admin/exams')}
-              className="text-sm text-blue-600 font-medium hover:text-blue-700"
-            >
-              View All
-            </button>
-
-          </div>
-
-          <div className="divide-y divide-slate-100">
-
-            {upcomingExams.length === 0 ? <div className="p-6 text-sm text-slate-500">No upcoming exams.</div> : upcomingExams.map((exam, idx) => (
-
-              <div
-                key={idx}
-                className="p-6 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-              >
-
-                <div>
-
-                  <h3 className="font-semibold text-slate-900 mb-1">
-                    {exam.course_code || 'Course not assigned'}
-                  </h3>
-
-                  <div className="flex items-center space-x-1 text-sm text-slate-500">
-                    <Clock size={16} />
-                    <span>
-                      {exam.exam_date} at {exam.start_time} - {exam.end_time}
-                    </span>
-                  </div>
-
+        <div className="divide-y divide-slate-100">
+          {upcomingExams.length ? upcomingExams.map((exam, idx) => (
+            <div key={idx} className="p-6 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-1">{exam.course}</h3>
+                <div className="flex items-center space-x-1 text-sm text-slate-500">
+                  <Clock size={16} />
+                  <span>{exam.date} at {exam.time}</span>
                 </div>
-
-                <div className="flex items-center space-x-6">
-
-                  <div className="text-center">
-                    <p className="text-sm text-slate-500">
-                      Rooms
-                    </p>
-                    <p className="font-semibold text-slate-900">
-                      0
-                    </p>
-                  </div>
-
-                  <div className="text-center">
-                    <p className="text-sm text-slate-500">
-                      Students
-                    </p>
-                    <p className="font-semibold text-slate-900">
-                      {exam.total_students || 0}
-                    </p>
-                  </div>
-
-                </div>
-
               </div>
 
-            ))}
-
-          </div>
-
-        </div>
-
-        {/* AI Insights */}
-        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl shadow-md p-6 text-white relative overflow-hidden">
-
-          <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-
-          <h2 className="text-lg font-bold mb-6 flex items-center space-x-2">
-            <Bot size={24} className="text-blue-200" />
-            <span>AI Insights</span>
-          </h2>
-
-          <div className="space-y-4 relative z-10">
-
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-
-              <h3 className="font-semibold mb-1 text-blue-50">
-                Conflict Detected
-              </h3>
-
-              <p className="text-sm text-blue-200">
-                Dr. Smith is assigned to two rooms at 10:00 AM.
-                AI suggests reassigning Dr. Taylor.
-              </p>
-
-              <button
-                onClick={() => navigate('/admin/invigilation')}
-                className="mt-3 text-sm bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg font-medium transition-colors"
-              >
-                Resolve Now
-              </button>
-
+              <div className="flex items-center space-x-6">
+                <div className="text-center">
+                  <p className="text-sm text-slate-500">Rooms</p>
+                  <p className="font-semibold text-slate-900">{exam.rooms}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-slate-500">Students</p>
+                  <p className="font-semibold text-slate-900">{exam.students}</p>
+                </div>
+              </div>
             </div>
-
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-
-              <h3 className="font-semibold mb-1 text-blue-50">
-                Room Optimization
-              </h3>
-
-              <p className="text-sm text-blue-200">
-                Building A rooms are underutilized for CSE 312.
-                Consolidating rooms can save 2 invigilators.
-              </p>
-
-            </div>
-
-          </div>
-
+          )) : <div className="p-8 text-center text-slate-500">No upcoming exams scheduled.</div>}
         </div>
-
       </div>
-
     </div>
   );
 }

@@ -1,19 +1,16 @@
-export const API_URL =
-    import.meta.env.VITE_API_URL ||
-    (
-        import.meta.env.DEV ? 'http://127.0.0.1:5000' : 'https://examease-backend-r8s4.onrender.com');
+export const API_URL = import.meta.env.VITE_API_URL || 'https://examease-backend-r8s4.onrender.com';
 
 export async function apiRequest(path, options = {}) {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_URL}${path}`, {
-        ...options,
-        headers: {
-            ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            ...(options.headers || {})
-        }
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.message || data.error || 'Request failed.');
-    return data;
+  const token = localStorage.getItem('token');
+  const headers = { ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(options.headers || {}) };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(`${API_URL}${path}`, { ...options, headers });
+  let payload = {};
+  try { payload = await response.json(); } catch { payload = {}; }
+  if (response.status === 401) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  }
+  if (!response.ok) throw new Error(payload.message || payload.error || 'Request failed. Please try again.');
+  return payload;
 }

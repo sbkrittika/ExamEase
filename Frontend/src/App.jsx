@@ -19,8 +19,7 @@ import Rooms from "./pages/Rooms";
 import Exams from "./pages/Exams";
 import SeatPlan from "./pages/SeatPlan";
 import Invigilation from "./pages/Invigilation";
-import AIAssistant from "./pages/AIAssistant";
-
+import StudentDashboard from "./pages/StudentDashboard";
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("token");
 
@@ -28,6 +27,19 @@ function ProtectedRoute({ children }) {
     return <Navigate to="/login" replace />;
   }
 
+  return children;
+}
+
+function RoleRoute({ role, children }) {
+  let user = null;
+  try {
+    user = JSON.parse(localStorage.getItem("user") || "null");
+  } catch {
+    localStorage.removeItem("user");
+  }
+  if (!user || user.role !== role) {
+    return <Navigate to={role === "student" ? "/admin" : "/student"} replace />;
+  }
   return children;
 }
 
@@ -42,12 +54,25 @@ function App() {
           <Route path="/register" element={<Register />} />
         </Route>
 
+        <Route
+          path="/student"
+          element={
+            <ProtectedRoute>
+              <RoleRoute role="student">
+                <StudentDashboard />
+              </RoleRoute>
+            </ProtectedRoute>
+          }
+        />
+
         {/* ADMIN AREA */}
         <Route
           path="/admin"
           element={
             <ProtectedRoute>
-              <AdminLayout />
+              <RoleRoute role="faculty">
+                <AdminLayout />
+              </RoleRoute>
             </ProtectedRoute>
           }
         >
@@ -88,10 +113,6 @@ function App() {
             element={<Invigilation />}
           />
 
-          <Route
-            path="ai-assistant"
-            element={<AIAssistant />}
-          />
         </Route>
 
         {/* HOME */}

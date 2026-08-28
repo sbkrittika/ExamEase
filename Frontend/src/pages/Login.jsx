@@ -70,9 +70,7 @@ export default function Login() {
         );
       }
 
-      alert("Login successful!");
-
-      navigate("/admin", {
+      navigate(data.user?.role === "student" ? "/student" : "/admin", {
         replace: true,
       });
 

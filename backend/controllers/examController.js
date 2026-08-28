@@ -166,11 +166,7 @@ const updateExam = async (req, res) => {
     total_students
   } = req.body || {};
 
-  if (
-    !exam_date ||
-    !start_time ||
-    !end_time
-  ) {
+  if (!exam_date || !start_time || !end_time) {
     return res.status(400).json({
       success: false,
       message: 'Exam date and times are required.'

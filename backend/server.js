@@ -18,10 +18,13 @@ const allowedOrigins = configuredOrigins.length
         "http://localhost:5173",
         "http://localhost:3000"
     ];
+const vercelDeploymentOrigin = /^https:\/\/examease-[a-z0-9-]+-krittika4\.vercel\.app$/i;
 
 const corsOptions = {
     origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        if (!origin || allowedOrigins.includes(origin) || vercelDeploymentOrigin.test(origin)) {
+            return callback(null, true);
+        }
         callback(new Error("Origin is not allowed by CORS"));
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

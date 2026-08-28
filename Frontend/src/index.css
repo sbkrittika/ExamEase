@@ -113,34 +113,69 @@ body {
     margin-left: 4px;
 }
 
-.student-grid {
-    display: grid;
-    grid-template-columns: repeat(var(--grid-columns), minmax(0, 1fr));
+.seat-table-wrap {
+    overflow-x: auto;
 }
 
-.student-cell {
-    min-height: 58px;
-    padding: 8px 10px;
-    border-right: 1px solid #cbd5e1;
-    border-bottom: 1px solid #cbd5e1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 3px;
+.seat-table {
+    width: 100%;
+    min-width: 760px;
+    border-collapse: collapse;
+    table-layout: fixed;
 }
 
-.student-cell strong {
-    color: #2563eb;
-    font-size: .68rem;
-    font-weight: 700;
-    overflow-wrap: anywhere;
+.seat-table th,
+.seat-table td {
+    border: 1px solid #94a3b8;
+    padding: 9px 8px;
+    text-align: center;
+    vertical-align: middle;
 }
 
-.student-cell span {
+.seat-table th {
+    background: #f1f5f9;
+    color: #334e68;
+    font-size: .7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.seat-table td {
+    min-height: 52px;
+    height: 52px;
     color: #102a43;
-    font-size: .8rem;
-    font-weight: 600;
+    font-size: .74rem;
+}
+
+.seat-table td strong,
+.seat-table td span {
+    display: block;
     overflow-wrap: anywhere;
+}
+
+.seat-table td strong {
+    color: #2563eb;
+    font-size: .7rem;
+    font-weight: 700;
+}
+
+.seat-table td span {
+    margin-top: 3px;
+    font-size: .68rem;
+    font-weight: 600;
+}
+
+.room-name-cell {
+    width: 90px;
+    color: #102a43;
+    font-size: .95rem !important;
+    font-weight: 800;
+}
+
+.invigilator-cell {
+    width: 125px;
+    color: #64748b !important;
 }
 
 .room-footer {
@@ -153,9 +188,6 @@ body {
 }
 
 @media (max-width: 640px) {
-    .student-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
     .room-plan-heading,
     .room-footer {
         align-items: flex-start;
@@ -184,7 +216,8 @@ body {
     .room-plan {
         margin-bottom: 16px;
     }
-    .student-cell {
-        min-height: 48px;
+    .seat-table td {
+        height: 46px;
+        min-height: 46px;
     }
 }

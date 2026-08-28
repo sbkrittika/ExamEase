@@ -1,10 +1,16 @@
 {
-  "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "mysql2": "^3.23.3"
-  }
+    "scripts": {
+        "db:setup": "powershell -ExecutionPolicy Bypass -File ./scripts/setup-local-db.ps1",
+        "data:import": "node ./scripts/import-sample-data.js",
+        "backend": "npm --prefix backend start",
+        "frontend": "npm --prefix Frontend run dev -- --host 127.0.0.1"
+    },
+    "dependencies": {
+        "bcryptjs": "^3.0.3",
+        "cors": "^2.8.6",
+        "dotenv": "^17.4.2",
+        "express": "^5.2.1",
+        "jsonwebtoken": "^9.0.3",
+        "mysql2": "^3.23.3"
+    }
 }

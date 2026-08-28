@@ -119,7 +119,7 @@ CREATE TABLE `students` (
   `student_id` varchar(20) NOT NULL,
   `student_name` varchar(100) DEFAULT NULL,
   `semester` int(11) NOT NULL,
-  `course_code` varchar(30) NOT NULL
+
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------

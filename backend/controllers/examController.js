@@ -146,18 +146,7 @@ const allocate = async (req, res) => {
     } catch (err) { fail(res, "Failed to generate seat plan.", err); }
 };
 
-const getAllocations = async (req, res) => {
-    try {
-        const studentFilter = req.user.role === "student" ? " AND a.student_id = ?" : "";
-        const params = req.user.role === "student" ? [req.params.id, req.user.email.split("@")[0]] : [req.params.id];
-        const [rows] = await db.promise().query(
-            `SELECT a.*, r.room_number, r.building, s.student_name
-             FROM seat_allocations a LEFT JOIN rooms r ON r.room_id=a.room_id
-             LEFT JOIN students s ON s.student_id=a.student_id WHERE a.exam_id=?${studentFilter} ORDER BY r.room_number,a.seat_no`,
-            params
-        );
-        res.json({ success: true, allocations: rows });
-    } catch (err) { fail(res, "Failed to fetch seat plan.", err); }
+
 };
 
 module.exports = { addExam, getExams, updateExam, deleteExam, uploadZip, allocate, getAllocations };

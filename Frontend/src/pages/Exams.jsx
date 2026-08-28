@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react';
 import {
   Plus,
@@ -7,13 +6,21 @@ import {
   Edit2,
   Trash2,
   X,
-  UploadCloud,
+  UploadCloud
 } from 'lucide-react';
 
 import { apiRequest } from '../api';
 
-function autoAllocateStudents(students, roomCount, maxCoursesPerRoom = 4) {
-  if (!Array.isArray(students) || students.length === 0 || !roomCount) {
+function autoAllocateStudents(
+  students,
+  roomCount,
+  maxCoursesPerRoom = 4
+) {
+  if (
+    !Array.isArray(students) ||
+    students.length === 0 ||
+    !roomCount
+  ) {
     return [];
   }
 
@@ -34,7 +41,7 @@ function autoAllocateStudents(students, roomCount, maxCoursesPerRoom = 4) {
     (_, index) => ({
       room: `Room ${index + 1}`,
       courses: new Set(),
-      students: [],
+      students: []
     })
   );
 
@@ -42,26 +49,31 @@ function autoAllocateStudents(students, roomCount, maxCoursesPerRoom = 4) {
     (a, b) => b[1].length - a[1].length
   );
 
-  orderedCourses.forEach(([course, courseStudents]) => {
-    courseStudents.forEach((student) => {
-      const candidates = rooms.filter(
-        (room) => room.courses.size < maxCoursesPerRoom
-      );
+  orderedCourses.forEach(
+    ([course, courseStudents]) => {
+      courseStudents.forEach((student) => {
+        const candidates = rooms.filter(
+          (room) =>
+            room.courses.size < maxCoursesPerRoom
+        );
 
-      const better = candidates.sort(
-        (a, b) => a.students.length - b.students.length
-      );
+        const better = candidates.sort(
+          (a, b) =>
+            a.students.length - b.students.length
+        );
 
-      const pickedRoom = better[0] || rooms[0];
+        const pickedRoom =
+          better[0] || rooms[0];
 
-      pickedRoom.students.push(student);
-      pickedRoom.courses.add(course);
-    });
-  });
+        pickedRoom.students.push(student);
+        pickedRoom.courses.add(course);
+      });
+    }
+  );
 
   return rooms.map((room) => ({
     room: room.room,
-    students: room.students,
+    students: room.students
   }));
 }
 
@@ -102,27 +114,30 @@ export default function Exams() {
     duration: '2 Hours',
     examType: 'Midterm',
     roomCount: '2',
-    studentList: '',
+    studentList: ''
   });
 
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [isImportingZip, setIsImportingZip] = useState(false);
+  const [isImportingZip, setIsImportingZip] =
+    useState(false);
 
   const fileInputRef = useRef(null);
-
 
   const loadData = async () => {
     try {
       setLoading(true);
       setError('');
 
-      const [examData, courseData] = await Promise.all([
-        apiRequest('/api/exams'),
-        apiRequest('/api/courses'),
-      ]);
+      const [examData, courseData] =
+        await Promise.all([
+          apiRequest('/api/exams'),
+          apiRequest('/api/courses')
+        ]);
 
-      const loadedExams = (examData.exams || []).map((exam) => ({
+      const loadedExams = (
+        examData.exams || []
+      ).map((exam) => ({
         id: exam.exam_id,
         course: exam.course_code || '',
         date: exam.exam_date
@@ -141,7 +156,9 @@ export default function Exams() {
             ? 'Final'
             : 'Midterm',
 
-        roomCount: Number(exam.room_count || 0),
+        roomCount: Number(
+          exam.room_count || 0
+        ),
 
         totalStudents: Number(
           exam.total_students || 0
@@ -149,14 +166,15 @@ export default function Exams() {
 
         status: 'Scheduled',
 
-        allocation: [],
+        allocation: []
       }));
 
       setExams(loadedExams);
       setCourses(courseData.courses || []);
     } catch (err) {
       setError(
-        err.message || 'Failed to load exams.'
+        err.message ||
+          'Failed to load exams.'
       );
     } finally {
       setLoading(false);
@@ -167,23 +185,25 @@ export default function Exams() {
     loadData();
   }, []);
 
-
   const handleChange = (e) => {
     const { name, value } = e.target;
 
     setForm((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: value
     }));
   };
-
 
   const handleZipImport = async (event) => {
     const file = event.target.files?.[0];
 
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.zip')) {
+    if (
+      !file.name
+        .toLowerCase()
+        .endsWith('.zip')
+    ) {
       alert(
         'Please select a .zip file containing the Excel roster.'
       );
@@ -203,7 +223,7 @@ export default function Exams() {
         '/api/exams/upload-zip',
         {
           method: 'POST',
-          body: formData,
+          body: formData
         }
       );
 
@@ -214,20 +234,21 @@ export default function Exams() {
         : [];
 
       if (importedRows.length > 0) {
-        const nextStudentList = importedRows
-          .map(
-            (student) =>
-              `${student.student_id},${
-                student.course_code ||
-                getCourseCode(form.course) ||
-                'UNASSIGNED'
-              }`
-          )
-          .join('\n');
+        const nextStudentList =
+          importedRows
+            .map(
+              (student) =>
+                `${student.student_id},${
+                  student.course_code ||
+                  getCourseCode(form.course) ||
+                  'UNASSIGNED'
+                }`
+            )
+            .join('\n');
 
         setForm((prev) => ({
           ...prev,
-          studentList: nextStudentList,
+          studentList: nextStudentList
         }));
       }
 
@@ -237,7 +258,10 @@ export default function Exams() {
         } student records from ${file.name}.`
       );
     } catch (err) {
-      console.error('ZIP import error:', err);
+      console.error(
+        'ZIP import error:',
+        err
+      );
 
       alert(
         err.message ||
@@ -249,9 +273,6 @@ export default function Exams() {
     }
   };
 
-  /*
-   * RESET FORM
-   */
   const resetForm = () => {
     setForm({
       course: '',
@@ -260,13 +281,12 @@ export default function Exams() {
       duration: '2 Hours',
       examType: 'Midterm',
       roomCount: '2',
-      studentList: '',
+      studentList: ''
     });
 
     setEditingId(null);
     setShowForm(false);
   };
-
 
   const calculateEndTime = (
     startTime,
@@ -274,11 +294,12 @@ export default function Exams() {
   ) => {
     if (!startTime) return '';
 
-    const [hours, minutes] = startTime
-      .split(':')
-      .map(Number);
+    const [hours, minutes] =
+      startTime.split(':').map(Number);
 
-    const durationMatch = String(duration).match(
+    const durationMatch = String(
+      duration
+    ).match(
       /(\d+)\s*hour(?:s)?(?:\s*(?:and)?\s*(\d+)\s*minute)?/i
     );
 
@@ -306,7 +327,6 @@ export default function Exams() {
     ).padStart(2, '0')}`;
   };
 
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -325,27 +345,28 @@ export default function Exams() {
       return;
     }
 
-    const parsedStudents = form.studentList
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((entry, index) => {
-        const parts = entry.split(',');
+    const parsedStudents =
+      form.studentList
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((entry, index) => {
+          const parts = entry.split(',');
 
-        const rawId =
-          parts[0]?.trim() ||
-          `AUTO-${index + 1}`;
+          const rawId =
+            parts[0]?.trim() ||
+            `AUTO-${index + 1}`;
 
-        const rawCourse =
-          parts[1]?.trim() ||
-          getCourseCode(form.course);
+          const rawCourse =
+            parts[1]?.trim() ||
+            getCourseCode(form.course);
 
-        return {
-          id: rawId,
-          name: `Student ${rawId}`,
-          course: rawCourse,
-        };
-      });
+          return {
+            id: rawId,
+            name: `Student ${rawId}`,
+            course: rawCourse
+          };
+        });
 
     const endTime = calculateEndTime(
       form.time,
@@ -362,17 +383,10 @@ export default function Exams() {
         exam_date: form.date,
         start_time: form.time,
         end_time: endTime,
-
-        /*
-         * IMPORTANT:
-         * Send Midterm / Final as exam_type.
-         */
         exam_type: form.examType,
-
         course_code: courseCode,
-
         total_students:
-          parsedStudents.length,
+          parsedStudents.length
       };
 
       let response;
@@ -382,14 +396,10 @@ export default function Exams() {
           '/api/exams',
           {
             method: 'POST',
-            body: JSON.stringify(payload),
+            body: JSON.stringify(payload)
           }
         );
 
-        /*
-         * Reload from database.
-         * This guarantees the correct exam_id.
-         */
         await loadData();
 
         resetForm();
@@ -401,7 +411,7 @@ export default function Exams() {
         `/api/exams/${editingId}`,
         {
           method: 'PUT',
-          body: JSON.stringify(payload),
+          body: JSON.stringify(payload)
         }
       );
 
@@ -410,7 +420,6 @@ export default function Exams() {
         response
       );
 
-    
       await loadData();
 
       resetForm();
@@ -429,12 +438,10 @@ export default function Exams() {
     }
   };
 
-
   const handleEdit = async (exam) => {
     try {
       setError('');
 
-   /
       let studentList = '';
 
       try {
@@ -485,10 +492,9 @@ export default function Exams() {
           exam.roomCount || 2
         ),
 
-        studentList,
+        studentList
       });
 
-     
       setEditingId(exam.id);
 
       setShowForm(true);
@@ -501,9 +507,10 @@ export default function Exams() {
   };
 
   const handleDelete = async (id) => {
-    const confirmed = window.confirm(
-      'Are you sure you want to delete this exam?'
-    );
+    const confirmed =
+      window.confirm(
+        'Are you sure you want to delete this exam?'
+      );
 
     if (!confirmed) return;
 
@@ -514,11 +521,10 @@ export default function Exams() {
       await apiRequest(
         `/api/exams/${id}`,
         {
-          method: 'DELETE',
+          method: 'DELETE'
         }
       );
 
-     
       await loadData();
     } catch (err) {
       console.error(
@@ -535,7 +541,6 @@ export default function Exams() {
     }
   };
 
-  
   const formatDate = (date) => {
     if (!date) return '';
 
@@ -543,7 +548,9 @@ export default function Exams() {
       `${date}T00:00:00`
     );
 
-    if (Number.isNaN(parsed.getTime())) {
+    if (
+      Number.isNaN(parsed.getTime())
+    ) {
       return date;
     }
 
@@ -552,12 +559,11 @@ export default function Exams() {
       {
         month: 'short',
         day: 'numeric',
-        year: 'numeric',
+        year: 'numeric'
       }
     );
   };
 
- 
   const formatTime = (time) => {
     if (!time) return '';
 
@@ -579,18 +585,14 @@ export default function Exams() {
       'en-US',
       {
         hour: 'numeric',
-        minute: '2-digit',
+        minute: '2-digit'
       }
     );
   };
 
   return (
     <div className="space-y-6">
-
-     
-
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
             Exam Scheduling
@@ -608,9 +610,6 @@ export default function Exams() {
         )}
 
         <div className="flex flex-wrap items-center gap-3">
-
-          {/* ZIP IMPORT */}
-
           <button
             type="button"
             onClick={() =>
@@ -636,8 +635,6 @@ export default function Exams() {
             onChange={handleZipImport}
           />
 
-          {/* ADD EXAM */}
-
           <button
             type="button"
             onClick={() => {
@@ -652,19 +649,12 @@ export default function Exams() {
               Schedule Exam
             </span>
           </button>
-
         </div>
       </div>
 
-      {/* =========================
-          FORM
-      ========================= */}
-
       {showForm && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-
           <div className="flex items-center justify-between mb-5">
-
             <h2 className="font-semibold text-slate-900">
               {editingId
                 ? 'Edit Exam'
@@ -678,16 +668,12 @@ export default function Exams() {
             >
               <X size={18} />
             </button>
-
           </div>
 
           <form
             onSubmit={handleSubmit}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
           >
-
-            {/* COURSE */}
-
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Course *
@@ -722,8 +708,6 @@ export default function Exams() {
               </select>
             </div>
 
-            {/* EXAM TYPE */}
-
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Exam Type *
@@ -745,8 +729,6 @@ export default function Exams() {
               </select>
             </div>
 
-            {/* DATE */}
-
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Date *
@@ -761,8 +743,6 @@ export default function Exams() {
               />
             </div>
 
-            {/* TIME */}
-
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Time *
@@ -776,8 +756,6 @@ export default function Exams() {
                 className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
-
-            {/* DURATION */}
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -816,8 +794,6 @@ export default function Exams() {
               </select>
             </div>
 
-            {/* ROOMS */}
-
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Rooms
@@ -834,10 +810,7 @@ export default function Exams() {
               />
             </div>
 
-            {/* STUDENT LIST */}
-
             <div className="md:col-span-2 lg:col-span-4">
-
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Student IDs / list
               </label>
@@ -859,13 +832,9 @@ Example:
               <p className="text-xs text-slate-400 mt-1">
                 Format: Student ID, Course.Section
               </p>
-
             </div>
 
-            {/* BUTTONS */}
-
             <div className="md:col-span-2 lg:col-span-4 flex justify-end gap-3 pt-2">
-
               <button
                 type="button"
                 onClick={resetForm}
@@ -885,23 +854,14 @@ Example:
                   ? 'Update Exam'
                   : 'Save Exam'}
               </button>
-
             </div>
-
           </form>
         </div>
       )}
 
-      {/* =========================
-          EXAM LIST
-      ========================= */}
-
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-
         <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-
           <div>
-
             <h2 className="font-semibold text-slate-900">
               Upcoming Exams
             </h2>
@@ -913,7 +873,6 @@ Example:
                 : ''}{' '}
               scheduled
             </p>
-
           </div>
 
           <button
@@ -927,7 +886,6 @@ Example:
             <Plus size={16} />
             Add Exam
           </button>
-
         </div>
 
         {loading && exams.length === 0 ? (
@@ -935,9 +893,7 @@ Example:
             Loading exams...
           </div>
         ) : exams.length === 0 ? (
-
           <div className="p-10 text-center">
-
             <Calendar
               size={40}
               className="mx-auto text-slate-300 mb-3"
@@ -950,38 +906,25 @@ Example:
             <p className="text-sm text-slate-500 mt-1">
               Schedule your first examination to get started.
             </p>
-
           </div>
-
         ) : (
-
           <div className="divide-y divide-slate-100">
-
             {exams.map((exam) => (
-
               <div
                 key={exam.id}
                 className="p-4 sm:p-6 hover:bg-slate-50 transition-colors group flex flex-col sm:flex-row sm:items-center justify-between gap-4"
               >
-
                 <div>
-
                   <h3 className="font-semibold text-slate-900 mb-2">
                     {exam.course}
                   </h3>
 
                   <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
-
-                    {/* EXAM TYPE */}
-
                     <span className="bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-1 rounded-lg font-medium">
                       {exam.examType}
                     </span>
 
-                    {/* DATE */}
-
                     <span className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-lg">
-
                       <Calendar
                         size={14}
                         className="text-slate-400"
@@ -990,13 +933,9 @@ Example:
                       <span>
                         {formatDate(exam.date)}
                       </span>
-
                     </span>
 
-                    {/* TIME */}
-
                     <span className="flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-lg">
-
                       <Clock
                         size={14}
                         className="text-slate-400"
@@ -1008,10 +947,7 @@ Example:
                           ? ` (${exam.duration})`
                           : ''}
                       </span>
-
                     </span>
-
-                    {/* STUDENTS */}
 
                     {exam.totalStudents > 0 && (
                       <span className="text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-md px-2 py-1">
@@ -1019,21 +955,15 @@ Example:
                         students
                       </span>
                     )}
-
                   </div>
-
                 </div>
 
-                {/* ACTIONS */}
-
                 <div className="flex items-center justify-between sm:justify-end gap-4">
-
                   <span className="px-2.5 py-1 rounded-md text-xs font-medium border bg-blue-50 text-blue-700 border-blue-100">
                     Scheduled
                   </span>
 
                   <div className="flex items-center space-x-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-
                     <button
                       type="button"
                       onClick={() =>
@@ -1055,21 +985,13 @@ Example:
                     >
                       <Trash2 size={16} />
                     </button>
-
                   </div>
-
                 </div>
-
               </div>
-
             ))}
-
           </div>
-
         )}
-
       </div>
-
     </div>
   );
 }

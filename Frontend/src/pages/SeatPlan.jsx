@@ -1,41 +1,43 @@
-
 import { useEffect, useMemo, useState } from 'react';
-import { Grid, Printer, Download } from 'lucide-react';
+import { Grid, Printer, Download, Check } from 'lucide-react';
 import { apiRequest } from '../api';
 
 function escapeCsv(value) {
   const text = String(value ?? '');
-  if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+
+  if (
+    text.includes(',') ||
+    text.includes('"') ||
+    text.includes('\n')
+  ) {
     return `"${text.replace(/"/g, '""')}"`;
   }
+
   return text;
 }
 
-function getSeatNumber(seatNo) {
-  if (seatNo === null || seatNo === undefined) return null;
+function getSeatNumber(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ''
+  ) {
+    return null;
+  }
 
-  const match = String(seatNo).match(/\d+/);
+  const match = String(value).match(/\d+/);
+
   return match ? Number(match[0]) : null;
-}
-
-function getSeatColumn(seatNo, columnCount) {
-  const number = getSeatNumber(seatNo);
-  if (!number || !columnCount) return null;
-
-  return ((number - 1) % columnCount);
-}
-
-function getSeatRow(seatNo, columnCount) {
-  const number = getSeatNumber(seatNo);
-  if (!number || !columnCount) return null;
-
-  return Math.floor((number - 1) / columnCount);
 }
 
 function getCourseLabel(item) {
   if (!item) return '—';
 
-  const course = item.course_code || item.course || '—';
+  const course =
+    item.course_code ||
+    item.course ||
+    '—';
+
   const section =
     item.section !== undefined &&
     item.section !== null &&
@@ -49,14 +51,25 @@ function getCourseLabel(item) {
 function getRoomLabel(room) {
   if (!room) return '';
 
-  const building = room.building ? `${room.building} ` : '';
-  return `${building}${room.room_number || room.room_id || ''}`.trim();
+  const building = room.building
+    ? `${room.building} `
+    : '';
+
+  return `${building}${
+    room.room_number ||
+    room.roomNumber ||
+    room.room_id ||
+    ''
+  }`.trim();
 }
 
 function getDateText(exam) {
   if (!exam) return '';
 
-  const date = exam.exam_date || exam.date;
+  const date =
+    exam.exam_date ||
+    exam.date;
+
   if (!date) return '';
 
   const parsed = new Date(date);
@@ -65,11 +78,14 @@ function getDateText(exam) {
     return String(date);
   }
 
-  return parsed.toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+  return parsed.toLocaleDateString(
+    'en-GB',
+    {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    }
+  );
 }
 
 function getTimeText(exam) {
@@ -86,7 +102,10 @@ function getTimeText(exam) {
     exam.exam_end_time ||
     '';
 
-  if (start && end) return `${start}-${end}`;
+  if (start && end) {
+    return `${start}-${end}`;
+  }
+
   return start || '';
 }
 
@@ -105,125 +124,75 @@ function getExamTitle(exam) {
     return exam.exam_name;
   }
 
-  return 'Midterm Exam';
+  return 'Exam';
 }
 
-function getSemesterText(exam) {
-  if (!exam) return '';
-
-  return (
-    exam.semester_name ||
-    exam.semester ||
-    exam.term ||
-    ''
-  );
-}
-
-function getBuildingText(exam, rooms) {
-  if (exam?.building) return exam.building;
-
-  const buildings = [
-    ...new Set(
-      rooms
-        .map((room) => room.building)
-        .filter(Boolean)
-    ),
-  ];
-
-  return buildings.join(' and ');
-}
-
-function getRoomColumnCount(room, roomAllocations) {
+function getColumnCount(room, seats) {
   const possibleValues = [
     room?.columns,
     room?.column_count,
     room?.total_columns,
-    room?.cols,
+    room?.cols
   ];
 
   for (const value of possibleValues) {
     const number = Number(value);
-    if (Number.isInteger(number) && number > 0) {
+
+    if (
+      Number.isInteger(number) &&
+      number > 0
+    ) {
       return number;
     }
   }
 
-  /*
-   * If the room itself does not contain column information,
-   * determine the minimum number of columns required by the
-   * allocated seat numbers.
-   */
-  const seatNumbers = roomAllocations
-    .map((item) => getSeatNumber(item.seat_no))
-    .filter(Boolean);
-
-  if (!seatNumbers.length) return 6;
-
-  const maxSeat = Math.max(...seatNumbers);
-
-  /*
-   * Your current application uses six seats per row.
-   * This remains the fallback so existing allocations continue
-   * to display correctly.
-   */
-  return Math.min(6, Math.max(1, maxSeat));
+  return 6;
 }
 
-function buildRoomRows(room, allocations, columnCount) {
-  if (!allocations.length) return [];
+function buildRoomRows(
+  seats,
+  columnCount
+) {
+  if (!seats.length) return [];
 
-  const hasUsableSeatNumbers = allocations.some(
-    (item) => getSeatNumber(item.seat_no)
-  );
-
-  /*
-   * If seat_no contains actual seat numbers, use those numbers
-   * to place students in the correct row/column.
-   */
-  if (hasUsableSeatNumbers) {
-    const rowMap = {};
-
-    allocations.forEach((item, index) => {
-      const seatNumber =
-        getSeatNumber(item.seat_no) || index + 1;
-
-      const row = getSeatRow(seatNumber, columnCount);
-
-      if (!rowMap[row]) {
-        rowMap[row] = Array(columnCount).fill(null);
-      }
-
-      const column = getSeatColumn(seatNumber, columnCount);
-
-      if (
-        column !== null &&
-        column >= 0 &&
-        column < columnCount
-      ) {
-        rowMap[row][column] = item;
-      }
-    });
-
-    return Object.keys(rowMap)
-      .sort((a, b) => Number(a) - Number(b))
-      .map((key) => rowMap[key]);
-  }
-
-  /*
-   * Fallback for the current allocation structure.
-   */
   const rows = [];
 
-  for (let i = 0; i < allocations.length; i += columnCount) {
-    rows.push(
-      allocations.slice(i, i + columnCount)
+  const sortedSeats = [...seats].sort(
+    (a, b) =>
+      (getSeatNumber(a.seat_no) || 0) -
+      (getSeatNumber(b.seat_no) || 0)
+  );
+
+  sortedSeats.forEach((student) => {
+    const seatNumber =
+      getSeatNumber(student.seat_no);
+
+    if (!seatNumber) {
+      return;
+    }
+
+    const index = seatNumber - 1;
+
+    const rowIndex = Math.floor(
+      index / columnCount
     );
-  }
+
+    const columnIndex =
+      index % columnCount;
+
+    if (!rows[rowIndex]) {
+      rows[rowIndex] =
+        Array(columnCount).fill(null);
+    }
+
+    rows[rowIndex][columnIndex] =
+      student;
+  });
 
   return rows;
 }
 
-function courseSummary(allocations, roomGroups) {
+function createSummary(allocations) {
   const courseMap = {};
 
   allocations.forEach((item) => {
@@ -233,13 +202,14 @@ function courseSummary(allocations, roomGroups) {
       courseMap[label] = {
         course: label,
         total: 0,
-        rooms: {},
+        rooms: {}
       };
     }
 
     courseMap[label].total += 1;
 
-    const roomId = item.room_id;
+    const roomId =
+      String(item.room_id);
 
     if (!courseMap[label].rooms[roomId]) {
       courseMap[label].rooms[roomId] = 0;
@@ -248,30 +218,61 @@ function courseSummary(allocations, roomGroups) {
     courseMap[label].rooms[roomId] += 1;
   });
 
-  return Object.values(courseMap).sort((a, b) =>
-    a.course.localeCompare(b.course)
+  return Object.values(courseMap).sort(
+    (a, b) =>
+      a.course.localeCompare(b.course)
   );
 }
 
 export default function SeatPlan() {
   const [exams, setExams] = useState([]);
   const [rooms, setRooms] = useState([]);
-  const [selectedExam, setSelectedExam] = useState('');
-  const [allocations, setAllocations] = useState([]);
+  const [selectedExam, setSelectedExam] =
+    useState('');
+  const [selectedRoomIds, setSelectedRoomIds] =
+    useState([]);
+  const [allocations, setAllocations] =
+    useState([]);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [loading, setLoading] =
+    useState(false);
+  const [generating, setGenerating] =
+    useState(false);
 
   const selectedExamData = useMemo(
     () =>
       exams.find(
         (exam) =>
-          String(exam.exam_id) === String(selectedExam)
+          String(exam.exam_id) ===
+          String(selectedExam)
       ),
     [exams, selectedExam]
   );
 
-  const load = async (examId) => {
+  const selectedRooms = useMemo(
+    () =>
+      rooms.filter((room) =>
+        selectedRoomIds.includes(
+          String(room.room_id)
+        )
+      ),
+    [rooms, selectedRoomIds]
+  );
+
+  const selectedCapacity = useMemo(
+    () =>
+      selectedRooms.reduce(
+        (total, room) =>
+          total +
+          Number(room.capacity || 0),
+        0
+      ),
+    [selectedRooms]
+  );
+
+  const loadAllocations = async (
+    examId
+  ) => {
     if (!examId) {
       setAllocations([]);
       return;
@@ -281,64 +282,107 @@ export default function SeatPlan() {
       setLoading(true);
       setError('');
 
-      const data = await apiRequest(
-        `/api/exams/${examId}/allocations`
+      const data =
+        await apiRequest(
+          `/api/exams/${examId}/allocations`
+        );
+
+      setAllocations(
+        data.allocations || []
+      );
+    } catch (err) {
+      setError(
+        err.message ||
+          'Failed to load seat plan.'
       );
 
-      setAllocations(data.allocations || []);
-    } catch (err) {
-      setError(err.message || 'Failed to load seat plan.');
       setAllocations([]);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        setLoading(true);
-        setError('');
+  const loadInitialData = async () => {
+    try {
+      setLoading(true);
+      setError('');
 
-        const [examData, roomData] = await Promise.all([
-          apiRequest('/api/exams'),
-          apiRequest('/api/rooms'),
-        ]);
+      const [
+        examData,
+        roomData
+      ] = await Promise.all([
+        apiRequest('/api/exams'),
+        apiRequest('/api/rooms')
+      ]);
 
-        setExams(examData.exams || []);
+      setExams(
+        examData.exams || []
+      );
 
-        setRooms(
-          (roomData.rooms || []).filter(
+      const availableRooms =
+        (roomData.rooms || [])
+          .filter(
             (room) =>
-              room.status === 'Available' ||
+              room.status ===
+                'Available' ||
               !room.status
-          )
-        );
-      } catch (err) {
-        setError(
-          err.message || 'Failed to load seat plan data.'
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
+          );
 
+      setRooms(availableRooms);
+    } catch (err) {
+      setError(
+        err.message ||
+          'Failed to load seat plan data.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadInitialData();
   }, []);
 
   useEffect(() => {
-    load(selectedExam);
+    loadAllocations(selectedExam);
   }, [selectedExam]);
+
+  const toggleRoom = (roomId) => {
+    const id = String(roomId);
+
+    setSelectedRoomIds(
+      (previous) =>
+        previous.includes(id)
+          ? previous.filter(
+              (item) => item !== id
+            )
+          : [...previous, id]
+    );
+  };
+
+  const selectAllRooms = () => {
+    setSelectedRoomIds(
+      rooms.map((room) =>
+        String(room.room_id)
+      )
+    );
+  };
+
+  const clearRooms = () => {
+    setSelectedRoomIds([]);
+  };
 
   const generate = async () => {
     if (!selectedExam) {
-      setError('Please select an exam.');
+      setError(
+        'Please select an exam.'
+      );
       return;
     }
 
-    if (!rooms.length) {
+    if (!selectedRoomIds.length) {
       setError(
-        'Please add at least one available room before generating the seat plan.'
+        'Please select at least one room.'
       );
       return;
     }
@@ -347,18 +391,33 @@ export default function SeatPlan() {
       setGenerating(true);
       setError('');
 
-      await apiRequest('/api/exams/allocate', {
-        method: 'POST',
-        body: JSON.stringify({
-          exam_id: selectedExam,
-          roomIds: rooms.map((room) => room.room_id),
-        }),
-      });
+      const data =
+        await apiRequest(
+          '/api/exams/allocate',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              exam_id: selectedExam,
+              roomIds: selectedRoomIds,
+              maxCoursesPerRoom: 4
+            })
+          }
+        );
 
-      await load(selectedExam);
+      if (!data.success) {
+        throw new Error(
+          data.message ||
+            'Failed to generate seat plan.'
+        );
+      }
+
+      await loadAllocations(
+        selectedExam
+      );
     } catch (err) {
       setError(
-        err.message || 'Failed to generate seat plan.'
+        err.message ||
+          'Failed to generate seat plan.'
       );
     } finally {
       setGenerating(false);
@@ -374,34 +433,55 @@ export default function SeatPlan() {
         'Name',
         'Course',
         'Section',
+        'Building',
         'Room',
-        'Seat',
+        'Seat'
       ],
-      ...allocations.map((item) => [
-        item.student_id,
-        item.student_name || item.name || '',
-        item.course_code || '',
-        item.section || '',
-        item.room_number || item.room_id || '',
-        item.seat_no || '',
-      ]),
+      ...allocations.map(
+        (item) => [
+          item.student_id,
+          item.student_name ||
+            item.name ||
+            '',
+          item.course_code || '',
+          item.section || '',
+          item.building || '',
+          item.room_number ||
+            item.room_id ||
+            '',
+          item.seat_no || ''
+        ]
+      )
     ];
 
-    const csv = csvRows
-      .map((row) =>
-        row.map(escapeCsv).join(',')
-      )
-      .join('\n');
+    const csv =
+      csvRows
+        .map((row) =>
+          row
+            .map(escapeCsv)
+            .join(',')
+        )
+        .join('\n');
 
-    const url = URL.createObjectURL(
-      new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    );
+    const url =
+      URL.createObjectURL(
+        new Blob([csv], {
+          type: 'text/csv;charset=utf-8;'
+        })
+      );
 
-    const link = document.createElement('a');
+    const link =
+      document.createElement('a');
+
     link.href = url;
-    link.download = `seat-plan-${selectedExam}.csv`;
+
+    link.download =
+      `seat-plan-${selectedExam}.csv`;
+
     document.body.appendChild(link);
+
     link.click();
+
     link.remove();
 
     URL.revokeObjectURL(url);
@@ -412,33 +492,35 @@ export default function SeatPlan() {
 
     allocations.forEach((item) => {
       const key =
-        item.room_id ||
-        item.room_number ||
-        'unknown-room';
+        String(
+          item.room_id ||
+            item.room_number ||
+            'unknown'
+        );
 
       if (!groups[key]) {
-        const roomInfo =
+        const room =
           rooms.find(
-            (room) =>
-              String(room.room_id) === String(item.room_id) ||
-              String(room.room_number) ===
-                String(item.room_number)
+            (roomItem) =>
+              String(
+                roomItem.room_id
+              ) === key
           ) || {};
 
         groups[key] = {
           id: key,
           label:
             item.room_number ||
-            roomInfo.room_number ||
+            room.room_number ||
             item.room_id ||
-            roomInfo.room_id ||
+            room.room_id ||
             key,
           building:
             item.building ||
-            roomInfo.building ||
+            room.building ||
             '',
-          roomInfo,
-          seats: [],
+          roomInfo: room,
+          seats: []
         };
       }
 
@@ -450,23 +532,14 @@ export default function SeatPlan() {
 
   const summary = useMemo(
     () =>
-      courseSummary(
-        allocations,
-        roomGroups
+      createSummary(
+        allocations
       ),
-    [allocations, roomGroups]
-  );
-
-  const summaryRooms = useMemo(
-    () => roomGroups,
-    [roomGroups]
+    [allocations]
   );
 
   return (
     <>
-      {/* =========================
-          NORMAL APPLICATION UI
-          ========================= */}
       <div className="seat-plan-screen space-y-6">
         <div className="flex flex-wrap justify-between gap-3">
           <div>
@@ -475,14 +548,18 @@ export default function SeatPlan() {
             </h1>
 
             <p className="text-slate-500 mt-1">
-              Allocate enrolled students to available rooms.
+              Select an exam and choose the rooms for the seat plan.
             </p>
           </div>
 
           <div className="flex gap-2">
             <button
-              onClick={() => window.print()}
-              disabled={!allocations.length}
+              onClick={() =>
+                window.print()
+              }
+              disabled={
+                !allocations.length
+              }
               className="px-4 py-2 rounded-xl border bg-white flex gap-2 items-center disabled:opacity-50"
             >
               <Printer size={17} />
@@ -491,7 +568,11 @@ export default function SeatPlan() {
 
             <button
               onClick={generate}
-              disabled={generating}
+              disabled={
+                generating ||
+                !selectedExam ||
+                !selectedRoomIds.length
+              }
               className="px-4 py-2 rounded-xl bg-blue-600 text-white flex gap-2 items-center disabled:opacity-50"
             >
               <Grid size={17} />
@@ -516,9 +597,13 @@ export default function SeatPlan() {
 
           <select
             value={selectedExam}
-            onChange={(e) =>
-              setSelectedExam(e.target.value)
-            }
+            onChange={(e) => {
+              setSelectedExam(
+                e.target.value
+              );
+
+              setAllocations([]);
+            }}
             className="border rounded-xl px-3 py-2 w-full max-w-xl"
           >
             <option value="">
@@ -530,22 +615,180 @@ export default function SeatPlan() {
                 key={exam.exam_id}
                 value={exam.exam_id}
               >
-                {exam.course_code || 'Exam'} ·{' '}
+                {exam.course_code ||
+                  'Exam'}{' '}
+                ·{' '}
                 {exam.exam_date}
               </option>
             ))}
           </select>
         </div>
 
+        <div className="bg-white rounded-2xl border border-slate-100 p-5">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
+            <div>
+              <h2 className="font-semibold text-slate-900">
+                Select Rooms
+              </h2>
+
+              <p className="text-sm text-slate-500 mt-1">
+                Only selected rooms will be used for this exam.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={selectAllRooms}
+                className="px-3 py-2 text-sm rounded-lg bg-slate-100 hover:bg-slate-200"
+              >
+                Select All
+              </button>
+
+              <button
+                type="button"
+                onClick={clearRooms}
+                className="px-3 py-2 text-sm rounded-lg bg-slate-100 hover:bg-slate-200"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          {rooms.length === 0 ? (
+            <div className="rounded-xl bg-amber-50 text-amber-700 p-4">
+              No available rooms found. Please add an available room first.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {rooms.map((room) => {
+                const id = String(
+                  room.room_id
+                );
+
+                const selected =
+                  selectedRoomIds.includes(
+                    id
+                  );
+
+                return (
+                  <button
+                    type="button"
+                    key={room.room_id}
+                    onClick={() =>
+                      toggleRoom(
+                        room.room_id
+                      )
+                    }
+                    className={`text-left rounded-xl border-2 p-4 transition-all ${
+                      selected
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-slate-900">
+                          {room.building}
+                        </p>
+
+                        <p className="text-lg font-bold text-slate-800 mt-1">
+                          Room{' '}
+                          {room.room_number}
+                        </p>
+
+                        <p className="text-sm text-slate-500 mt-1">
+                          Capacity:{' '}
+                          {room.capacity}{' '}
+                          students
+                        </p>
+                      </div>
+
+                      <div
+                        className={`w-6 h-6 rounded-full border flex items-center justify-center ${
+                          selected
+                            ? 'bg-blue-600 border-blue-600 text-white'
+                            : 'border-slate-300'
+                        }`}
+                      >
+                        {selected && (
+                          <Check
+                            size={15}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="rounded-xl bg-blue-50 p-4">
+              <p className="text-sm text-blue-600">
+                Selected Rooms
+              </p>
+
+              <p className="text-2xl font-bold text-blue-900">
+                {selectedRooms.length}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-emerald-50 p-4">
+              <p className="text-sm text-emerald-600">
+                Selected Capacity
+              </p>
+
+              <p className="text-2xl font-bold text-emerald-900">
+                {selectedCapacity}
+              </p>
+            </div>
+
+            <div className="rounded-xl bg-slate-50 p-4">
+              <p className="text-sm text-slate-600">
+                Exam Students
+              </p>
+
+              <p className="text-2xl font-bold text-slate-900">
+                {selectedExamData?.total_students ||
+                  0}
+              </p>
+            </div>
+          </div>
+
+          {selectedExamData &&
+            selectedCapacity <
+              Number(
+                selectedExamData.total_students ||
+                  0
+              ) && (
+              <div className="mt-4 rounded-xl bg-red-50 text-red-700 p-4">
+                Selected rooms have only{' '}
+                <strong>
+                  {selectedCapacity}
+                </strong>{' '}
+                seats, but this exam has{' '}
+                <strong>
+                  {selectedExamData.total_students}
+                </strong>{' '}
+                students.
+              </div>
+            )}
+        </div>
+
         <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
           <div className="p-5 flex justify-between">
             <h2 className="font-semibold">
-              Allocated seats ({allocations.length})
+              Allocated Seats (
+              {allocations.length})
             </h2>
 
             <button
               onClick={exportCsv}
-              disabled={!allocations.length}
+              disabled={
+                !allocations.length
+              }
               className="text-blue-600 flex gap-1 items-center disabled:text-slate-300"
             >
               <Download size={16} />
@@ -559,122 +802,152 @@ export default function SeatPlan() {
             </div>
           ) : !allocations.length ? (
             <div className="p-10 text-center text-slate-500">
-              Generate a plan to see seat assignments.
+              Select an exam and rooms, then click Generate.
             </div>
           ) : (
             <div className="p-5 space-y-6">
-              {roomGroups.map((room) => {
-                const columnCount =
-                  getRoomColumnCount(
-                    room.roomInfo,
-                    room.seats
-                  );
+              {roomGroups.map(
+                (room) => {
+                  const columnCount =
+                    getColumnCount(
+                      room.roomInfo,
+                      room.seats
+                    );
 
-                const rows = buildRoomRows(
-                  room,
-                  room.seats,
-                  columnCount
-                );
+                  const rows =
+                    buildRoomRows(
+                      room.seats,
+                      columnCount
+                    );
 
-                return (
-                  <div
-                    key={room.id}
-                    className="border rounded-xl overflow-hidden"
-                  >
-                    <div className="bg-slate-50 px-4 py-3 font-semibold text-slate-800">
-                      Room {room.label}
-                    </div>
+                  return (
+                    <div
+                      key={room.id}
+                      className="border rounded-xl overflow-hidden"
+                    >
+                      <div className="bg-slate-50 px-4 py-3">
+                        <p className="font-semibold text-slate-800">
+                          {room.building}
+                        </p>
 
-                    <div className="overflow-x-auto">
-                      <table className="seat-table">
-                        <thead>
-                          <tr>
-                            <th>Course / Section</th>
+                        <p className="text-sm text-slate-500">
+                          Room{' '}
+                          {room.label}
+                        </p>
+                      </div>
 
-                            {Array.from(
-                              {
-                                length: columnCount,
-                              },
-                              (_, index) => (
-                                <th key={index}>
-                                  Column {index + 1}
-                                </th>
+                      <div className="overflow-x-auto">
+                        <table className="seat-table">
+                          <thead>
+                            <tr>
+                              <th>
+                                Row
+                              </th>
+
+                              {Array.from(
+                                {
+                                  length:
+                                    columnCount
+                                },
+                                (_, index) => (
+                                  <th
+                                    key={
+                                      index
+                                    }
+                                  >
+                                    Seat{' '}
+                                    {index +
+                                      1}
+                                  </th>
+                                )
+                              )}
+                            </tr>
+                          </thead>
+
+                          <tbody>
+                            {rows.map(
+                              (
+                                row,
+                                rowIndex
+                              ) => (
+                                <tr
+                                  key={
+                                    rowIndex
+                                  }
+                                >
+                                  <th>
+                                    {rowIndex +
+                                      1}
+                                  </th>
+
+                                  {Array.from(
+                                    {
+                                      length:
+                                        columnCount
+                                    },
+                                    (
+                                      _,
+                                      columnIndex
+                                    ) => {
+                                      const item =
+                                        row[
+                                          columnIndex
+                                        ];
+
+                                      return (
+                                        <td
+                                          key={
+                                            columnIndex
+                                          }
+                                        >
+                                          {item ? (
+                                            <>
+                                              <strong>
+                                                {
+                                                  item.student_id
+                                                }
+                                              </strong>
+
+                                              <span>
+                                                {item.student_name ||
+                                                  item.name ||
+                                                  ''}
+                                              </span>
+
+                                              <small>
+                                                {getCourseLabel(
+                                                  item
+                                                )}
+                                              </small>
+                                            </>
+                                          ) : (
+                                            '—'
+                                          )}
+                                        </td>
+                                      );
+                                    }
+                                  )}
+                                </tr>
                               )
                             )}
-                          </tr>
-                        </thead>
-
-                        <tbody>
-                          {rows.map(
-                            (row, rowIndex) => (
-                              <tr key={rowIndex}>
-                                <th>
-                                  {getCourseLabel(
-                                    row.find(Boolean)
-                                  )}
-                                </th>
-
-                                {Array.from(
-                                  {
-                                    length: columnCount,
-                                  },
-                                  (_, columnIndex) => {
-                                    const item =
-                                      row[columnIndex];
-
-                                    return (
-                                      <td
-                                        key={
-                                          columnIndex
-                                        }
-                                      >
-                                        {item ? (
-                                          <>
-                                            <strong>
-                                              {
-                                                item.student_id
-                                              }
-                                            </strong>
-
-                                            <span>
-                                              {item.student_name ||
-                                                item.name ||
-                                                ''}
-                                            </span>
-                                          </>
-                                        ) : (
-                                          '—'
-                                        )}
-                                      </td>
-                                    );
-                                  }
-                                )}
-                              </tr>
-                            )
-                          )}
-                        </tbody>
-                      </table>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                }
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {/* =========================
-          PRINT VERSION
-          ========================= */}
       <div className="seat-plan-print">
         <div className="print-header">
           <h1>
-            {getExamTitle(selectedExamData)}
-            {getSemesterText(selectedExamData)
-              ? ` - ${getSemesterText(
-                  selectedExamData
-                )}`
-              : ''}
+            {getExamTitle(
+              selectedExamData
+            )}
           </h1>
 
           <h2>
@@ -684,131 +957,104 @@ export default function SeatPlan() {
                   selectedExamData
                 )}`
               : ''}
-            {getTimeText(selectedExamData)
+            {getTimeText(
+              selectedExamData
+            )
               ? ` - ${getTimeText(
                   selectedExamData
                 )}`
-              : ''}
-            {getBuildingText(
-              selectedExamData,
-              rooms
-            )
-              ? ` (${getBuildingText(
-                  selectedExamData,
-                  rooms
-                )})`
               : ''}
           </h2>
         </div>
 
         {roomGroups.map((room) => {
           const columnCount =
-            getRoomColumnCount(
+            getColumnCount(
               room.roomInfo,
               room.seats
             );
 
-          const rows = buildRoomRows(
-            room,
-            room.seats,
-            columnCount
-          );
-
-          const invigilators = [
-            ...new Set(
-              room.seats
-                .map(
-                  (item) =>
-                    item.invigilator_name ||
-                    item.invigilator ||
-                    item.faculty_name ||
-                    ''
-                )
-                .filter(Boolean)
-            ),
-          ];
+          const rows =
+            buildRoomRows(
+              room.seats,
+              columnCount
+            );
 
           return (
             <section
               className="print-room"
               key={room.id}
             >
+              <h3>
+                {room.building} — Room{' '}
+                {room.label}
+              </h3>
+
               <table className="print-seat-table">
                 <thead>
                   <tr>
-                    <th className="room-header">
-                      Room
-                    </th>
+                    <th>Row</th>
 
                     {Array.from(
                       {
-                        length: columnCount,
+                        length:
+                          columnCount
                       },
                       (_, index) => (
                         <th key={index}>
-                          Column {index + 1}
+                          Seat{' '}
+                          {index + 1}
                         </th>
                       )
                     )}
-
-                    <th>Invigilator</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {rows.map(
-                    (row, rowIndex) => (
-                      <tr key={rowIndex}>
-                        {rowIndex === 0 ? (
-                          <td
-                            rowSpan={rows.length}
-                            className="room-name"
-                          >
-                            {room.label}
-                          </td>
-                        ) : null}
+                    (
+                      row,
+                      rowIndex
+                    ) => (
+                      <tr
+                        key={
+                          rowIndex
+                        }
+                      >
+                        <td>
+                          {rowIndex +
+                            1}
+                        </td>
 
                         {Array.from(
                           {
-                            length: columnCount,
+                            length:
+                              columnCount
                           },
-                          (_, columnIndex) => {
+                          (
+                            _,
+                            columnIndex
+                          ) => {
                             const item =
-                              row[columnIndex];
+                              row[
+                                columnIndex
+                              ];
 
                             return (
                               <td
                                 key={
                                   columnIndex
                                 }
-                                className="course-seat"
                               >
-                                {item ? (
-                                  <span>
-                                    {getCourseLabel(
+                                {item
+                                  ? getCourseLabel(
                                       item
-                                    )}
-                                  </span>
-                                ) : (
-                                  ''
-                                )}
+                                    )
+                                  : ''}
                               </td>
                             );
                           }
                         )}
-
-                        {rowIndex === 0 ? (
-                          <td
-                            rowSpan={rows.length}
-                            className="invigilator-cell"
-                          >
-                            {invigilators.length
-                              ? invigilators.join(
-                                  ', '
-                                )
-                              : ''}
-                          </td>
-                        ) : null}
                       </tr>
                     )
                   )}
@@ -820,61 +1066,97 @@ export default function SeatPlan() {
 
         {summary.length > 0 && (
           <section className="print-summary">
-            <h2>Course-wise Seat Allocation Summary</h2>
+            <h2>
+              Course-wise Seat Allocation Summary
+            </h2>
 
             <table className="summary-table">
               <thead>
                 <tr>
-                  <th>Course</th>
+                  <th>
+                    Course
+                  </th>
 
-                  {summaryRooms.map(
+                  {roomGroups.map(
                     (room) => (
-                      <th key={room.id}>
+                      <th
+                        key={
+                          room.id
+                        }
+                      >
                         {room.label}
                       </th>
                     )
                   )}
 
-                  <th>Total</th>
+                  <th>
+                    Total
+                  </th>
                 </tr>
               </thead>
 
               <tbody>
-                {summary.map((course) => (
-                  <tr key={course.course}>
-                    <td className="course-name">
-                      {course.course}
-                    </td>
+                {summary.map(
+                  (course) => (
+                    <tr
+                      key={
+                        course.course
+                      }
+                    >
+                      <td>
+                        {
+                          course.course
+                        }
+                      </td>
 
-                    {summaryRooms.map(
-                      (room) => (
-                        <td key={room.id}>
-                          {course.rooms[
-                            room.id
-                          ] || 0}
-                        </td>
-                      )
-                    )}
+                      {roomGroups.map(
+                        (room) => (
+                          <td
+                            key={
+                              room.id
+                            }
+                          >
+                            {course
+                              .rooms[
+                              room.id
+                            ] || 0}
+                          </td>
+                        )
+                      )}
 
-                    <td className="total-cell">
-                      {course.total}
-                    </td>
-                  </tr>
-                ))}
+                      <td>
+                        {
+                          course.total
+                        }
+                      </td>
+                    </tr>
+                  )
+                )}
 
-                <tr className="grand-total">
-                  <td>Total</td>
+                <tr>
+                  <td>
+                    Total
+                  </td>
 
-                  {summaryRooms.map(
+                  {roomGroups.map(
                     (room) => (
-                      <td key={room.id}>
-                        {room.seats.length}
+                      <td
+                        key={
+                          room.id
+                        }
+                      >
+                        {
+                          room.seats
+                            .length
+                        }
                       </td>
                     )
                   )}
 
                   <td>
-                    {allocations.length}
+                    {
+                      allocations.length
+                    }
                   </td>
                 </tr>
               </tbody>
@@ -894,6 +1176,7 @@ export default function SeatPlan() {
           border: 1px solid #e2e8f0;
           padding: 10px;
           text-align: center;
+          min-width: 120px;
         }
 
         .seat-table th {
@@ -902,7 +1185,8 @@ export default function SeatPlan() {
         }
 
         .seat-table td strong,
-        .seat-table td span {
+        .seat-table td span,
+        .seat-table td small {
           display: block;
         }
 
@@ -912,9 +1196,12 @@ export default function SeatPlan() {
           font-size: 12px;
         }
 
-        /*
-         * PRINT DOCUMENT
-         */
+        .seat-table td small {
+          margin-top: 3px;
+          color: #2563eb;
+          font-size: 11px;
+          font-weight: 600;
+        }
 
         .seat-plan-print {
           display: none;
@@ -952,7 +1239,6 @@ export default function SeatPlan() {
           }
 
           .print-header {
-            display: block;
             text-align: center;
             margin-bottom: 10mm;
           }
@@ -960,20 +1246,23 @@ export default function SeatPlan() {
           .print-header h1 {
             margin: 0 0 4px;
             font-size: 18px;
-            font-weight: 700;
           }
 
           .print-header h2 {
             margin: 0;
             font-size: 12px;
-            font-weight: 600;
           }
 
           .print-room {
             width: 100%;
             margin-bottom: 8mm;
             page-break-inside: avoid;
-            break-inside: avoid;
+          }
+
+          .print-room h3 {
+            text-align: center;
+            font-size: 13px;
+            margin-bottom: 4mm;
           }
 
           .print-seat-table {
@@ -993,37 +1282,16 @@ export default function SeatPlan() {
 
           .print-seat-table th {
             font-weight: 700;
-            background: #fff;
-          }
-
-          .print-seat-table .room-header {
-            width: 12%;
-          }
-
-          .print-seat-table .room-name {
-            font-size: 12px;
-            font-weight: 700;
-          }
-
-          .print-seat-table .course-seat {
-            font-weight: 600;
-            min-height: 24px;
-          }
-
-          .print-seat-table .invigilator-cell {
-            width: 16%;
-            font-weight: 600;
           }
 
           .print-summary {
             margin-top: 8mm;
-            page-break-before: auto;
           }
 
           .print-summary h2 {
             text-align: center;
             font-size: 14px;
-            margin: 0 0 5mm;
+            margin-bottom: 5mm;
           }
 
           .summary-table {
@@ -1035,42 +1303,24 @@ export default function SeatPlan() {
           .summary-table th,
           .summary-table td {
             border: 1px solid #000;
-            padding: 5px 4px;
+            padding: 5px;
             text-align: center;
           }
 
-          .summary-table th {
+          .summary-table th,
+          .summary-table tr:last-child {
             font-weight: 700;
           }
 
-          .summary-table .course-name {
-            text-align: left;
-            font-weight: 600;
-          }
-
-          .summary-table .total-cell,
-          .summary-table .grand-total {
-            font-weight: 700;
-          }
-
-          .summary-table .grand-total td {
-            font-weight: 700;
-          }
-
-          .print-room:last-of-type {
-            margin-bottom: 0;
-          }
           table {
             page-break-inside: auto;
           }
 
           tr {
             page-break-inside: avoid;
-            page-break-after: auto;
           }
         }
       `}</style>
     </>
   );
 }
-

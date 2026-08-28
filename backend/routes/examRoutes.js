@@ -18,8 +18,7 @@ const {
   allowRoles
 } = require('../middleware/auth');
 
-const router =
-  express.Router();
+const router = express.Router();
 
 router.use(authenticate);
 
@@ -66,5 +65,4 @@ router.get(
   getAllocations
 );
 
-module.exports = router;
 module.exports = router;

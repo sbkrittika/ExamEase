@@ -114,37 +114,250 @@ const uploadZip = async (req, res) => {
     } catch (err) { fail(res, "Invalid ZIP file.", err); }
 };
 
+```javascript
 const allocate = async (req, res) => {
-    const { exam_id, exam_date, exam_time, roomIds, studentIds, maxCoursesPerRoom } = req.body || {};
-    if ((!exam_id && (!exam_date || !exam_time)) || !Array.isArray(roomIds) || !roomIds.length) {
-        return res.status(400).json({ success: false, message: "An exam (or date/time) and at least one room are required." });
+    const {
+        exam_id,
+        exam_date,
+        exam_time,
+        roomIds,
+        studentIds,
+        maxCoursesPerRoom
+    } = req.body || {};
+
+    if (
+        (!exam_id && (!exam_date || !exam_time)) ||
+        !Array.isArray(roomIds) ||
+        !roomIds.length
+    ) {
+        return res.status(400).json({
+            success: false,
+            message: "An exam (or date/time) and at least one room are required."
+        });
     }
+
     try {
-        const [rooms] = await db.promise().query("SELECT room_id,capacity FROM rooms WHERE room_id IN (?) AND status='Available'", [roomIds]);
-        if (!rooms.length) return res.status(400).json({ success: false, message: "No available rooms were selected." });
-        const studentSql = studentIds && studentIds.length ? "SELECT student_id,student_name AS name,course_code FROM students WHERE student_id IN (?)" : "SELECT student_id,student_name AS name,course_code FROM students";
-        const [rows] = await db.promise().query(studentSql, studentIds && studentIds.length ? [studentIds] : []);
-        const students = rows.map((row) => ({ student_id: row.student_id, name: row.name || "Unknown", course_code: row.course_code || "UNASSIGNED" }));
-        const roomNames = rooms.map((room) => String(room.room_id));
-        const capacities = Object.fromEntries(rooms.map((room) => [String(room.room_id), Number(room.capacity)]));
-        if (students.length > rooms.reduce((total, room) => total + Number(room.capacity), 0)) {
-            return res.status(400).json({ success: false, message: "Selected rooms do not have enough capacity for these students." });
+        const [rooms] = await db.promise().query(
+            "SELECT room_id, room_number, building, capacity FROM rooms WHERE room_id IN (?) AND status='Available'",
+            [roomIds]
+        );
+
+        if (!rooms.length) {
+            return res.status(400).json({
+                success: false,
+                message: "No available rooms were selected."
+            });
         }
-        const result = allocateStudents(students, roomNames, { maxCoursesPerRoom: Number(maxCoursesPerRoom) || 4, capacities });
-        if (!result.allocations) return res.status(400).json({ success: false, message: "Allocation failed.", warnings: result.warnings });
+
+        const studentSql =
+            Array.isArray(studentIds) && studentIds.length
+                ? "SELECT student_id, student_name AS name, course_code, section, semester FROM students WHERE student_id IN (?)"
+                : "SELECT student_id, student_name AS name, course_code, section, semester FROM students";
+
+        const [rows] = await db.promise().query(
+            studentSql,
+            Array.isArray(studentIds) && studentIds.length
+                ? [studentIds]
+                : []
+        );
+
+        if (!rows.length) {
+            return res.status(400).json({
+                success: false,
+                message: "No students were found for this exam."
+            });
+        }
+
+        const students = rows.map((row) => ({
+            student_id: row.student_id,
+            name: row.name || "Unknown",
+            course_code: row.course_code || "UNASSIGNED",
+            section: row.section || "",
+            semester: row.semester
+        }));
+
+        const roomNames = rooms.map((room) =>
+            String(room.room_id)
+        );
+
+        const capacities = Object.fromEntries(
+            rooms.map((room) => [
+                String(room.room_id),
+                Number(room.capacity)
+            ])
+        );
+
+        const roomLayouts = Object.fromEntries(
+            rooms.map((room) => {
+                const capacity = Number(room.capacity);
+
+                const columns =
+                    Number(room.columns) ||
+                    Number(room.column_count) ||
+                    6;
+
+                const rowsCount =
+                    Math.ceil(capacity / columns);
+
+                return [
+                    String(room.room_id),
+                    {
+                        rows: rowsCount,
+                        columns
+                    }
+                ];
+            })
+        );
+
+        const totalCapacity = rooms.reduce(
+            (total, room) =>
+                total + Number(room.capacity || 0),
+            0
+        );
+
+        if (students.length > totalCapacity) {
+            return res.status(400).json({
+                success: false,
+                message: `Selected rooms have ${totalCapacity} seats, but ${students.length} students need seats.`,
+                availableSeats: totalCapacity,
+                requiredSeats: students.length
+            });
+        }
+
+        const result = allocateStudents(
+            students,
+            roomNames,
+            {
+                maxCoursesPerRoom:
+                    Number(maxCoursesPerRoom) || 4,
+                capacities,
+                roomLayouts
+            }
+        );
+
+        if (!result.allocations) {
+            return res.status(400).json({
+                success: false,
+                message: "Allocation failed.",
+                warnings: result.warnings || []
+            });
+        }
+
         let targetExam = exam_id;
+
         if (!targetExam) {
-            const [created] = await db.promise().query("INSERT INTO exams (exam_date,start_time,end_time,exam_type,created_by) VALUES (?,?,?,?,?)", [exam_date, exam_time, exam_time, "SEAT_PLAN", req.user.user_id]);
+            const [created] =
+                await db.promise().query(
+                    "INSERT INTO exams (exam_date,start_time,end_time,exam_type,created_by) VALUES (?,?,?,?,?)",
+                    [
+                        exam_date,
+                        exam_time,
+                        exam_time,
+                        "SEAT_PLAN",
+                        req.user.user_id
+                    ]
+                );
+
             targetExam = created.insertId;
         }
-        await db.promise().query("DELETE FROM seat_allocations WHERE exam_id=?", [targetExam]);
-        const inserts = [];
-        Object.entries(result.allocations).forEach(([roomId, roomStudents]) => roomStudents.forEach((student, index) => {
-            inserts.push([targetExam, student.student_id, student.course_code, Number(roomId), Math.floor(index / 6) + 1, (index % 6) + 1, index + 1]);
-        }));
-        if (inserts.length) await db.promise().query("INSERT INTO seat_allocations (exam_id,student_id,course_code,room_id,row_no,column_no,seat_no) VALUES ?", [inserts]);
-        res.json({ success: true, exam_id: targetExam, allocations: result.allocations, warnings: result.warnings });
-    } catch (err) { fail(res, "Failed to generate seat plan.", err); }
+
+        const connection =
+            await db.promise().getConnection();
+
+        try {
+            await connection.beginTransaction();
+
+            await connection.query(
+                "DELETE FROM seat_allocations WHERE exam_id=?",
+                [targetExam]
+            );
+
+            const inserts = [];
+
+            Object.entries(
+                result.allocations
+            ).forEach(
+                ([roomId, roomStudents]) => {
+                    roomStudents.forEach(
+                        (student) => {
+                            inserts.push([
+                                targetExam,
+                                student.student_id,
+                                student.course_code,
+                                Number(roomId),
+                                Number(student.row),
+                                Number(student.column),
+                                Number(student.seat_no)
+                            ]);
+                        }
+                    );
+                }
+            );
+
+            if (inserts.length) {
+                await connection.query(
+                    "INSERT INTO seat_allocations (exam_id,student_id,course_code,room_id,row_no,column_no,seat_no) VALUES ?",
+                    [inserts]
+                );
+            }
+
+            await connection.commit();
+
+            const savedAllocations = {};
+
+            Object.entries(
+                result.allocations
+            ).forEach(
+                ([roomId, roomStudents]) => {
+                    savedAllocations[roomId] =
+                        roomStudents.map(
+                            (student) => ({
+                                student_id:
+                                    student.student_id,
+                                student_name:
+                                    student.name ||
+                                    student.student_name ||
+                                    "",
+                                course_code:
+                                    student.course_code,
+                                section:
+                                    student.section ||
+                                    "",
+                                room_id:
+                                    Number(roomId),
+                                seat_no:
+                                    Number(student.seat_no),
+                                row:
+                                    Number(student.row),
+                                column:
+                                    Number(student.column)
+                            })
+                        );
+                }
+            );
+
+            res.json({
+                success: true,
+                exam_id: targetExam,
+                allocations: savedAllocations,
+                roomInfo:
+                    result.roomInfo || {},
+                warnings:
+                    result.warnings || []
+            });
+        } catch (err) {
+            await connection.rollback();
+            throw err;
+        } finally {
+            connection.release();
+        }
+    } catch (err) {
+        fail(
+            res,
+            "Failed to generate seat plan.",
+            err
+        );
+    }
 };
 
 const getAllocations = async (req, res) => {

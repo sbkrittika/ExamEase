@@ -1,4 +1,5 @@
 const db = require("../config/db");
+const bcrypt = require("bcryptjs");
 
 const asError = (res, message, err) => {
     console.error(message, err && err.message);
@@ -42,6 +43,24 @@ const listFaculty = async (req, res) => {
         );
         res.json({ success: true, faculty: rows });
     } catch (err) { asError(res, "Failed to fetch faculty.", err); }
+};
+
+const saveFaculty = async (req, res) => {
+    const { full_name, email, password, department, designation, phone } = req.body || {};
+    if (!full_name || !email || !password || !department || String(password).length < 6) {
+        return res.status(400).json({ success: false, message: "Name, email, department and a password of at least 6 characters are required." });
+    }
+    try {
+        const hashedPassword = await bcrypt.hash(String(password), 10);
+        await db.promise().query(
+            "INSERT INTO users (full_name,email,password,role,department,designation,phone) VALUES (?,?,?,'faculty',?,?,?)",
+            [String(full_name).trim(), String(email).trim().toLowerCase(), hashedPassword, String(department).trim(), designation ? String(designation).trim() : null, phone ? String(phone).trim() : null]
+        );
+        res.status(201).json({ success: true, message: "Faculty added successfully." });
+    } catch (err) {
+        if (err.code === "ER_DUP_ENTRY") return res.status(409).json({ success: false, message: "Faculty email already exists." });
+        asError(res, "Failed to add faculty.", err);
+    }
 };
 
 const listRooms = async (req, res) => {
@@ -140,5 +159,5 @@ const removeAssignment = async (req, res) => {
 
 module.exports = {
     listStudents, saveStudent, deleteStudent, listFaculty, listRooms, saveRoom, deleteRoom,
-    dashboard, mySchedule, listAssignments, assignInvigilator, removeAssignment
+    dashboard, mySchedule, listAssignments, assignInvigilator, removeAssignment, saveFaculty
 };

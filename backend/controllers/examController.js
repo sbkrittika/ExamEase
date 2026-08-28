@@ -85,9 +85,10 @@ function parseXlsxBuffer(buffer) {
 const uploadZip = async (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, message: "A ZIP file is required." });
     try {
-        const entry = new AdmZip(req.file.buffer).getEntries().find((item) => item.entryName.toLowerCase().endsWith(".xlsx"));
-        if (!entry) return res.status(400).json({ success: false, message: "No .xlsx file was found inside the ZIP." });
-        const students = parseXlsxBuffer(entry.getData());
+        const isXlsx = req.file.originalname.toLowerCase().endsWith(".xlsx");
+        const entry = isXlsx ? null : new AdmZip(req.file.buffer).getEntries().find((item) => item.entryName.toLowerCase().endsWith(".xlsx"));
+        if (!isXlsx && !entry) return res.status(400).json({ success: false, message: "No .xlsx file was found inside the ZIP." });
+        const students = parseXlsxBuffer(isXlsx ? req.file.buffer : entry.getData());
         if (!students.length) return res.status(400).json({ success: false, message: "No student rows found in the Excel file." });
         const connection = await db.promise().getConnection();
         try {

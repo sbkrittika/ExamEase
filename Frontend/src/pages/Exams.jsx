@@ -145,9 +145,10 @@ export default function Exams() {
 
     try {
       const [hours, minutes] = form.time.split(':').map(Number);
-      const durationHours = Number.parseInt(form.duration, 10) || 2;
+      const durationMatch = form.duration.match(/(\d+)\s*hour(?:s)?(?:\s*(?:and)?\s*(\d+)\s*minute)?/i);
+      const durationMinutes = durationMatch ? Number(durationMatch[1]) * 60 + Number(durationMatch[2] || 0) : 120;
       const end = new Date(2000, 0, 1, hours, minutes);
-      end.setHours(end.getHours() + durationHours);
+      end.setMinutes(end.getMinutes() + durationMinutes);
       const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
       const response = await apiRequest('/api/exams', { method: editingId ? 'PUT' : 'POST', body: JSON.stringify({
         exam_date: form.date, start_time: form.time, end_time: endTime,
@@ -259,6 +260,8 @@ export default function Exams() {
               <label className="block text-sm font-medium text-slate-700 mb-1">Duration</label>
               <select name="duration" value={form.duration} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
                 <option value="1 Hour">1 Hour</option>
+                <option value="1 Hour 15 Minutes">1 Hour 15 Minutes</option>
+                <option value="1 Hour 30 Minutes">1 Hour 30 Minutes</option>
                 <option value="2 Hours">2 Hours</option>
                 <option value="3 Hours">3 Hours</option>
                 <option value="4 Hours">4 Hours</option>

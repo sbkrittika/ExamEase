@@ -1,7 +1,7 @@
 const express = require("express");
 const {
     listStudents, saveStudent, deleteStudent, listFaculty,
-    listRooms, saveRoom, deleteRoom, dashboard, mySchedule,
+    listRooms, saveRoom, deleteRoom, dashboard, mySchedule, saveFaculty,
     listAssignments, assignInvigilator, removeAssignment
 } = require("../controllers/resourceController");
 const { authenticate, allowRoles } = require("../middleware/auth");
@@ -14,6 +14,7 @@ router.get("/students", allowRoles("faculty"), listStudents);
 router.post("/students", allowRoles("faculty"), saveStudent);
 router.delete("/students/:id", allowRoles("faculty"), deleteStudent);
 router.get("/faculty", allowRoles("faculty"), listFaculty);
+router.post("/faculty", allowRoles("faculty"), saveFaculty);
 router.get("/rooms", allowRoles("faculty"), listRooms);
 router.post("/rooms", allowRoles("faculty"), saveRoom);
 router.delete("/rooms/:id", allowRoles("faculty"), deleteRoom);

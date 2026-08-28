@@ -4,11 +4,13 @@ import { apiRequest } from '../api';
 
 export default function Students() {
   const fileInputRef = useRef(null);
+  const folderInputRef = useRef(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [students, setStudents] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState('');
+  const [semesterFilter, setSemesterFilter] = useState('');
   const [form, setForm] = useState({ id: '', name: '', email: '', department: 'CSE', year: '1st' });
 
   useEffect(() => {
@@ -22,9 +24,9 @@ export default function Students() {
     const q = searchTerm.toLowerCase();
     return students.filter((student) => {
       const haystack = `${student.id} ${student.name} ${student.email} ${student.department}`.toLowerCase();
-      return haystack.includes(q);
+      return haystack.includes(q) && (!semesterFilter || String(student.year) === semesterFilter);
     });
-  }, [searchTerm, students]);
+  }, [searchTerm, semesterFilter, students]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -62,7 +64,7 @@ export default function Students() {
   };
 
   const handleImportZip = async (event) => {
-    const file = event.target.files?.[0];
+    const file = Array.from(event.target.files || []).find((item) => item.name.toLowerCase().endsWith('.zip') || item.name.toLowerCase().endsWith('.xlsx'));
     if (!file) return;
 
     setUploading(true);
@@ -75,7 +77,7 @@ export default function Students() {
       setStudents((result.students || []).map((student) => ({ id: student.student_id, name: student.student_name, email: `${student.student_id}@eastdelta.edu.bd`, department: student.course_code || 'General', year: student.semester })));
       setStatus(`Imported ${result.imported || 0} students from ${file.name}.`);
     } catch (error) {
-      alert(error.message || 'Unable to import the ZIP.');
+      alert(error.message || 'Unable to import the student file.');
       setStatus('');
     } finally {
       setUploading(false);
@@ -93,9 +95,11 @@ export default function Students() {
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => fileInputRef.current?.click()} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm shadow-emerald-600/20 flex items-center space-x-2">
             <Upload size={18} />
-            <span>{uploading ? 'Importing...' : 'Import ZIP'}</span>
+            <span>{uploading ? 'Importing...' : 'Import File / ZIP'}</span>
           </button>
-          <input ref={fileInputRef} type="file" accept=".zip" className="hidden" onChange={handleImportZip} />
+          <input ref={fileInputRef} type="file" accept=".zip,.xlsx" className="hidden" onChange={handleImportZip} />
+          <button type="button" onClick={() => folderInputRef.current?.click()} className="bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2">Import Folder</button>
+          <input ref={folderInputRef} type="file" webkitdirectory="" directory="" multiple className="hidden" onChange={handleImportZip} />
           <button type="button" onClick={() => setShowForm((prev) => !prev)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm shadow-blue-600/20 flex items-center space-x-2">
             <Plus size={18} />
             <span>{showForm ? 'Close' : 'Add Student'}</span>
@@ -148,6 +152,7 @@ export default function Students() {
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search size={18} className="text-slate-400" /></div>
             <input type="text" placeholder="Search by name, ID or email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none" />
           </div>
+          <select value={semesterFilter} onChange={(e) => setSemesterFilter(e.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-sm"><option value="">All semesters</option>{[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => <option key={semester} value={semester}>Semester {semester}</option>)}</select>
         </div>
 
         {students.length === 0 ? (

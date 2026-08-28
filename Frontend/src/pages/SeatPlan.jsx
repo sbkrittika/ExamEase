@@ -28,6 +28,12 @@ export default function SeatPlan() {
     const csv = ['Student ID,Name,Course,Room,Seat', ...allocations.map((item) => `${item.student_id},${item.student_name || item.name},${item.course_code},${item.room_number || item.room_id},${item.seat_no}`)].join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); const link = document.createElement('a'); link.href = url; link.download = `seat-plan-${selectedExam}.csv`; link.click(); URL.revokeObjectURL(url);
   };
+  const byRoom = allocations.reduce((groups, item) => {
+    const key = item.room_id;
+    if (!groups[key]) groups[key] = { label: `${item.building || ''} ${item.room_number || item.room_id}`.trim(), seats: [] };
+    groups[key].seats.push(item);
+    return groups;
+  }, {});
   return <div className="space-y-6">
     <div className="flex flex-wrap justify-between gap-3">
       <div>
@@ -53,13 +59,13 @@ export default function SeatPlan() {
         <button onClick={exportCsv} disabled={!allocations.length} className="text-blue-600 flex gap-1 items-center disabled:text-slate-300"><Download size={16} /> Export CSV</button>
       </div>
       {!allocations.length ? <div className="p-10 text-center text-slate-500">Generate a plan to see seat assignments.</div> : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead><tr className="bg-slate-50 text-xs uppercase text-slate-500"><th className="px-5 py-3">Student</th><th className="px-5 py-3">Course</th><th className="px-5 py-3">Room</th><th className="px-5 py-3">Seat</th></tr></thead>
-            <tbody className="divide-y">
-              {allocations.map((item) => <tr key={item.allocation_id}><td className="px-5 py-3 text-sm">{item.student_id} · {item.student_name || item.name}</td><td className="px-5 py-3 text-sm">{item.course_code}</td><td className="px-5 py-3 text-sm">{item.building || ''} {item.room_number || item.room_id}</td><td className="px-5 py-3 text-sm font-medium">{item.seat_no}</td></tr>)}
-            </tbody>
-          </table>
+        <div className="p-5 space-y-6">
+          {Object.entries(byRoom).map(([roomId, room]) => <div key={roomId} className="border rounded-xl overflow-hidden">
+            <div className="bg-slate-50 px-4 py-3 font-semibold text-slate-800">Room {room.label}</div>
+            <div className="overflow-x-auto"><table className="seat-table"><thead><tr><th>Course / Section</th>{[1, 2, 3, 4, 5, 6].map((column) => <th key={column}>Seat {column}</th>)}</tr></thead>
+              <tbody>{seatRows(room.seats, 6).map((row, index) => <tr key={index}><th>{row[0]?.course_code || '—'}</th>{[0, 1, 2, 3, 4, 5].map((column) => { const item = row[column]; return <td key={column}>{item ? <><strong>{item.student_id}</strong><span>{item.student_name || item.name || ''}</span></> : '—'}</td>; })}</tr>)}</tbody>
+            </table></div>
+          </div>)}
         </div>
       )}
     </div>

@@ -1,17 +1,29 @@
-
-
-function allocateStudents(students, roomIds, options = {}) {
+function allocateStudents(
+  students,
+  roomIds,
+  options = {}
+) {
   const maxCoursesPerRoom =
-    Number(options.maxCoursesPerRoom) || 4;
+    Number(
+      options.maxCoursesPerRoom
+    ) || 4;
 
-  const capacities = options.capacities || {};
-  const roomLayouts = options.roomLayouts || {};
+  const capacities =
+    options.capacities || {};
+
+  const roomLayouts =
+    options.roomLayouts || {};
 
   if (!Array.isArray(students)) {
-    throw new Error('students must be an array');
+    throw new Error(
+      'students must be an array'
+    );
   }
 
-  if (!Array.isArray(roomIds) || roomIds.length === 0) {
+  if (
+    !Array.isArray(roomIds) ||
+    roomIds.length === 0
+  ) {
     throw new Error(
       'roomIds must be a non-empty array'
     );
@@ -20,29 +32,35 @@ function allocateStudents(students, roomIds, options = {}) {
   if (students.length === 0) {
     return {
       allocations: {},
-      warnings: ['No students available for allocation.'],
+      roomInfo: {},
+      warnings: [
+        'No students available for allocation.'
+      ]
     };
   }
 
-
-
+  const warnings = [];
   const uniqueStudents = [];
   const studentIds = new Set();
-  const duplicateStudents = [];
 
   for (const student of students) {
     const studentId = String(
       student.student_id ??
-      student.id ??
-      ''
+        student.id ??
+        ''
     ).trim();
 
     if (!studentId) {
       continue;
     }
 
-    if (studentIds.has(studentId)) {
-      duplicateStudents.push(studentId);
+    if (
+      studentIds.has(studentId)
+    ) {
+      warnings.push(
+        `Duplicate student ${studentId} was removed.`
+      );
+
       continue;
     }
 
@@ -50,140 +68,147 @@ function allocateStudents(students, roomIds, options = {}) {
 
     uniqueStudents.push({
       ...student,
-      student_id: studentId,
+      student_id: studentId
     });
   }
-
-  const warnings = [];
-
-  if (duplicateStudents.length > 0) {
-    warnings.push(
-      `Removed ${duplicateStudents.length} duplicate student record(s).`
-    );
-  }
-
-
 
   const courseMap = new Map();
 
   for (const student of uniqueStudents) {
-    const courseCode =
-      String(
-        student.course_code ||
+    const courseCode = String(
+      student.course_code ||
         student.course ||
         'UNASSIGNED'
-      ).trim();
+    ).trim();
 
     const section =
-      student.section !== undefined &&
+      student.section !==
+        undefined &&
       student.section !== null
-        ? String(student.section).trim()
+        ? String(
+            student.section
+          ).trim()
         : '';
 
     const courseKey = section
       ? `${courseCode}.${section}`
       : courseCode;
 
-    if (!courseMap.has(courseKey)) {
+    if (
+      !courseMap.has(courseKey)
+    ) {
       courseMap.set(courseKey, {
         key: courseKey,
         course_code: courseCode,
         section,
-        students: [],
+        students: []
       });
     }
 
-    courseMap.get(courseKey).students.push(student);
+    courseMap
+      .get(courseKey)
+      .students.push(student);
   }
 
-  const courses = Array.from(courseMap.values());
-
-
-  const rooms = roomIds.map((roomId) => {
-    const layout = roomLayouts[roomId] || {};
-
-    let capacity = Number(
-      capacities[roomId]
+  const courses =
+    Array.from(
+      courseMap.values()
     );
 
-    const rows = Number(
-      layout.rows
-    );
+  const rooms = roomIds.map(
+    (roomId) => {
+      const key = String(roomId);
 
-    const columns = Number(
-      layout.columns
-    );
+      const layout =
+        roomLayouts[key] || {};
 
-    
-    if (
-      Number.isInteger(rows) &&
-      rows > 0 &&
-      Number.isInteger(columns) &&
-      columns > 0
-    ) {
-      capacity = rows * columns;
-    }
+      let capacity = Number(
+        capacities[key]
+      );
 
-   
-    if (
-      !Number.isFinite(capacity) ||
-      capacity <= 0
-    ) {
-      capacity = Infinity;
-    }
+      const rows = Number(
+        layout.rows
+      );
 
-    return {
-      id: roomId,
-      capacity,
-      rows:
-        Number.isInteger(rows) && rows > 0
-          ? rows
-          : null,
-      columns:
+      const columns =
+        Number(layout.columns) ||
+        6;
+
+      if (
+        Number.isInteger(rows) &&
+        rows > 0 &&
         Number.isInteger(columns) &&
         columns > 0
-          ? columns
-          : null,
+      ) {
+        capacity =
+          rows * columns;
+      }
 
-      students: [],
-      courses: new Set(),
-    };
-  });
+      if (
+        !Number.isFinite(
+          capacity
+        ) ||
+        capacity <= 0
+      ) {
+        capacity = 0;
+      }
 
-
-  const totalCapacity = rooms.reduce(
-    (total, room) =>
-      total +
-      (Number.isFinite(room.capacity)
-        ? room.capacity
-        : uniqueStudents.length),
-    0
+      return {
+        id: key,
+        capacity,
+        rows:
+          Number.isInteger(rows) &&
+          rows > 0
+            ? rows
+            : Math.ceil(
+                capacity /
+                  columns
+              ),
+        columns:
+          Number.isInteger(
+            columns
+          ) && columns > 0
+            ? columns
+            : 6,
+        students: [],
+        courses: new Set()
+      };
+    }
   );
 
-  if (uniqueStudents.length > totalCapacity) {
-    return {
-      allocations: null,
-      warnings: [
-        `Not enough room capacity. ${uniqueStudents.length} students require seats, but only ${totalCapacity} seats are available.`,
-      ],
-    };
-  }
-
-
+  const totalCapacity =
+    rooms.reduce(
+      (total, room) =>
+        total + room.capacity,
+      0
+    );
 
   if (
-    courses.length >
-    rooms.length * maxCoursesPerRoom
+    uniqueStudents.length >
+    totalCapacity
   ) {
     return {
       allocations: null,
+      roomInfo: {},
       warnings: [
-        `Too many distinct courses (${courses.length}) for ${rooms.length} rooms with a maximum of ${maxCoursesPerRoom} courses per room.`,
-      ],
+        `Not enough room capacity. ${uniqueStudents.length} students require seats, but only ${totalCapacity} seats are available.`
+      ]
     };
   }
 
- 
+  if (
+    courses.length >
+    rooms.length *
+      maxCoursesPerRoom
+  ) {
+    return {
+      allocations: null,
+      roomInfo: {},
+      warnings: [
+        `Too many distinct courses (${courses.length}) for ${rooms.length} rooms with a maximum of ${maxCoursesPerRoom} courses per room.`
+      ]
+    };
+  }
 
   courses.sort(
     (a, b) =>
@@ -191,81 +216,89 @@ function allocateStudents(students, roomIds, options = {}) {
       a.students.length
   );
 
-
-
   for (const course of courses) {
-  
     for (const student of course.students) {
-      let candidates = rooms.filter(
-        (room) =>
-          room.courses.has(course.key) &&
-          room.students.length <
-            room.capacity
-      );
-
-     
-      if (candidates.length === 0) {
-        candidates = rooms.filter(
+      let candidates =
+        rooms.filter(
           (room) =>
-            room.courses.size <
-              maxCoursesPerRoom &&
+            room.courses.has(
+              course.key
+            ) &&
             room.students.length <
               room.capacity
         );
+
+      if (
+        candidates.length === 0
+      ) {
+        candidates =
+          rooms.filter(
+            (room) =>
+              room.courses.size <
+                maxCoursesPerRoom &&
+              room.students.length <
+                room.capacity
+          );
       }
 
-      if (candidates.length === 0) {
-        candidates = rooms.filter(
-          (room) =>
-            room.courses.has(course.key) &&
-            room.students.length <
-              room.capacity
-        );
-      }
-
-      if (candidates.length === 0) {
+      if (
+        candidates.length === 0
+      ) {
         return {
           allocations: null,
+          roomInfo: {},
           warnings: [
             ...warnings,
-            `No remaining seat available for student ${student.student_id} (${course.key}).`,
-          ],
+            `No available seat for student ${student.student_id}.`
+          ]
         };
       }
 
-    
-      candidates.sort((a, b) => {
-        const aHasCourse =
-          a.courses.has(course.key)
-            ? 0
-            : 1;
+      candidates.sort(
+        (a, b) => {
+          const aHasCourse =
+            a.courses.has(
+              course.key
+            )
+              ? 0
+              : 1;
 
-        const bHasCourse =
-          b.courses.has(course.key)
-            ? 0
-            : 1;
+          const bHasCourse =
+            b.courses.has(
+              course.key
+            )
+              ? 0
+              : 1;
 
-        if (aHasCourse !== bHasCourse) {
-          return aHasCourse - bHasCourse;
-        }
+          if (
+            aHasCourse !==
+            bHasCourse
+          ) {
+            return (
+              aHasCourse -
+              bHasCourse
+            );
+          }
 
-        if (
-          a.courses.size !==
-          b.courses.size
-        ) {
-          return (
-            a.courses.size -
+          if (
+            a.courses.size !==
             b.courses.size
+          ) {
+            return (
+              a.courses.size -
+              b.courses.size
+            );
+          }
+
+          return (
+            a.students.length -
+            b.students.length
           );
         }
+      );
 
-        return (
-          a.students.length -
-          b.students.length
-        );
-      });
-
-      const room = candidates[0];
+      const room =
+        candidates[0];
 
       room.students.push({
         ...student,
@@ -275,7 +308,7 @@ function allocateStudents(students, roomIds, options = {}) {
         section:
           student.section ||
           course.section ||
-          null,
+          null
       });
 
       room.courses.add(
@@ -284,31 +317,28 @@ function allocateStudents(students, roomIds, options = {}) {
     }
   }
 
-
-
-  const usedRooms = rooms.filter(
-    (room) => room.students.length > 0
-  );
-
-
-
   const allocations = {};
+  const roomInfo = {};
 
-  for (const room of usedRooms) {
+  for (const room of rooms) {
+    if (
+      room.students.length === 0
+    ) {
+      continue;
+    }
+
     const roomAllocations = [];
 
     const columns =
       room.columns || 6;
 
-    const rows =
-      room.rows ||
-      Math.ceil(
-        room.students.length /
-          columns
-      );
+    const rows = Math.ceil(
+      room.capacity /
+        columns
+    );
 
-    
-    const courseQueues = new Map();
+    const courseQueues =
+      new Map();
 
     for (const student of room.students) {
       const courseKey =
@@ -316,7 +346,11 @@ function allocateStudents(students, roomIds, options = {}) {
           ? `${student.course_code}.${student.section}`
           : student.course_code;
 
-      if (!courseQueues.has(courseKey)) {
+      if (
+        !courseQueues.has(
+          courseKey
+        )
+      ) {
         courseQueues.set(
           courseKey,
           []
@@ -331,197 +365,158 @@ function allocateStudents(students, roomIds, options = {}) {
     const queueEntries =
       Array.from(
         courseQueues.entries()
-      ).sort(
+      );
+
+    let seatIndex = 0;
+
+    while (
+      seatIndex <
+        room.capacity &&
+      queueEntries.some(
+        ([, queue]) =>
+          queue.length > 0
+      )
+    ) {
+      queueEntries.sort(
         (a, b) =>
           b[1].length -
           a[1].length
       );
 
-    let placed = true;
-
-    while (placed) {
-      placed = false;
-
       for (
-        let i = 0;
-        i < queueEntries.length;
-        i++
-      ) {
         const [
           courseKey,
-          queue,
-        ] = queueEntries[i];
-
-        if (queue.length === 0) {
+          queue
+        ] of queueEntries
+      ) {
+        if (
+          queue.length === 0
+        ) {
           continue;
+        }
+
+        if (
+          seatIndex >=
+          room.capacity
+        ) {
+          break;
         }
 
         const student =
           queue.shift();
 
-        const seatIndex =
-          roomAllocations.length;
-
         const row =
           Math.floor(
-            seatIndex / columns
+            seatIndex /
+              columns
           );
 
         const column =
-          seatIndex % columns;
-
-        const seatNo =
-          seatIndex + 1;
+          seatIndex %
+          columns;
 
         roomAllocations.push({
           ...student,
-
-          room_id: room.id,
-
-         
-          seat_no: seatNo,
-
+          room_id: Number(
+            room.id
+          ),
+          seat_no:
+            seatIndex + 1,
           row: row + 1,
-          column: column + 1,
-
-          course_code:
-            student.course_code,
-
-          section:
-            student.section || null,
-
+          column:
+            column + 1,
           course_section:
-            courseKey,
+            courseKey
         });
 
-        placed = true;
-
-        
-        if (
-          roomAllocations.length >=
-          room.capacity
-        ) {
-          break;
-        }
-      }
-
-      if (
-        roomAllocations.length >=
-        room.capacity
-      ) {
-        break;
+        seatIndex++;
       }
     }
 
-   
     if (
       roomAllocations.length !==
       room.students.length
     ) {
-      warnings.push(
-        `Room ${room.id}: some students could not be assigned a physical seat.`
-      );
+      return {
+        allocations: null,
+        roomInfo: {},
+        warnings: [
+          ...warnings,
+          `Room ${room.id} could not receive all assigned students.`
+        ]
+      };
     }
 
     allocations[room.id] =
       roomAllocations;
+
+    roomInfo[room.id] = {
+      capacity:
+        room.capacity,
+      rows,
+      columns,
+      studentCount:
+        roomAllocations.length,
+      courses:
+        Array.from(
+          room.courses
+        )
+    };
   }
-
-
 
   const finalStudentIds =
     new Set();
 
-  let duplicateAllocationCount =
-    0;
-
   for (const roomId of Object.keys(
     allocations
   )) {
-    for (const allocation of
+    for (const student of
       allocations[roomId]) {
       if (
         finalStudentIds.has(
-          allocation.student_id
+          student.student_id
         )
       ) {
-        duplicateAllocationCount++;
+        return {
+          allocations: null,
+          roomInfo: {},
+          warnings: [
+            ...warnings,
+            `Student ${student.student_id} was assigned more than once.`
+          ]
+        };
       }
 
       finalStudentIds.add(
-        allocation.student_id
+        student.student_id
       );
     }
   }
 
   if (
-    duplicateAllocationCount > 0
-  ) {
-    return {
-      allocations: null,
-      warnings: [
-        ...warnings,
-        `Allocation failed because ${duplicateAllocationCount} duplicate student allocation(s) were detected.`,
-      ],
-    };
-  }
-
-
-
-  const allocatedCount =
-    Object.values(allocations)
-      .reduce(
-        (total, roomStudents) =>
-          total + roomStudents.length,
-        0
-      );
-
-  if (
-    allocatedCount !==
+    finalStudentIds.size !==
     uniqueStudents.length
   ) {
     return {
       allocations: null,
+      roomInfo: {},
       warnings: [
         ...warnings,
-        `Allocation incomplete. ${allocatedCount} of ${uniqueStudents.length} students received seats.`,
-      ],
-    };
-  }
-
-
-
-  const roomInfo = {};
-
-  for (const room of usedRooms) {
-    roomInfo[room.id] = {
-      capacity: room.capacity,
-      rows:
-        room.rows ||
-        Math.ceil(
-          room.students.length /
-            (room.columns || 6)
-        ),
-      columns:
-        room.columns || 6,
-
-      studentCount:
-        allocations[room.id]
-          ?.length || 0,
-
-      courses:
-        Array.from(
-          room.courses
-        ),
+        `Allocation incomplete. ${finalStudentIds.size} of ${uniqueStudents.length} students received seats.`
+      ]
     };
   }
 
   return {
     allocations,
     roomInfo,
-    warnings,
+    warnings
   };
 }
+
+module.exports = {
+  allocateStudents
+};
 
 module.exports = {
   allocateStudents,

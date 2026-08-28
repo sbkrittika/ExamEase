@@ -4,10 +4,7 @@ const db = require('../config/db');
 const { allocateStudents } = require('../utils/allocator');
 
 const fail = (res, message, err) => {
-  console.error(
-    message,
-    err && err.message
-  );
+  console.error(message, err && err.message);
 
   return res.status(500).json({
     success: false,
@@ -30,57 +27,52 @@ const addExam = async (req, res) => {
     !start_time ||
     !end_time ||
     !course_code ||
-    !Number.isInteger(
-      Number(total_students)
-    ) ||
+    !Number.isInteger(Number(total_students)) ||
     Number(total_students) < 0
   ) {
     return res.status(400).json({
       success: false,
-      message:
-        'Exam date, times, course and student count are required.'
+      message: 'Exam date, times, course and student count are required.'
     });
   }
 
   try {
-    const connection =
-      await db
-        .promise()
-        .getConnection();
+    const connection = await db.promise().getConnection();
 
     try {
       await connection.beginTransaction();
 
-      const [courses] =
-        await connection.query(
-          'SELECT course_code FROM courses WHERE course_code = ? LIMIT 1',
-          [course_code]
-        );
+      const [courses] = await connection.query(
+        'SELECT course_code FROM courses WHERE course_code = ? LIMIT 1',
+        [course_code]
+      );
 
       if (!courses.length) {
         await connection.rollback();
 
         return res.status(404).json({
           success: false,
-          message:
-            'Course not found.'
+          message: 'Course not found.'
         });
       }
 
-      const [exam] =
-        await connection.query(
-          'INSERT INTO exams (exam_date,start_time,end_time,exam_type,created_by) VALUES (?,?,?,?,?)',
-          [
-            exam_date,
-            start_time,
-            end_time,
-            exam_type || null,
-            req.user.user_id
-          ]
-        );
+      const [exam] = await connection.query(
+        `INSERT INTO exams
+        (exam_date, start_time, end_time, exam_type, created_by)
+        VALUES (?, ?, ?, ?, ?)`,
+        [
+          exam_date,
+          start_time,
+          end_time,
+          exam_type || null,
+          req.user.user_id
+        ]
+      );
 
       await connection.query(
-        'INSERT INTO exam_courses (exam_id,course_code,total_students) VALUES (?,?,?)',
+        `INSERT INTO exam_courses
+        (exam_id, course_code, total_students)
+        VALUES (?, ?, ?)`,
         [
           exam.insertId,
           course_code,
@@ -92,111 +84,86 @@ const addExam = async (req, res) => {
 
       res.status(201).json({
         success: true,
-        exam_id:
-          exam.insertId,
-        message:
-          'Exam created successfully.'
+        exam_id: exam.insertId,
+        message: 'Exam created successfully.'
       });
     } catch (err) {
       await connection.rollback();
-
-      fail(
-        res,
-        'Failed to create exam.',
-        err
-      );
+      fail(res, 'Failed to create exam.', err);
     } finally {
       connection.release();
     }
   } catch (err) {
-    fail(
-      res,
-      'Failed to create exam.',
-      err
-    );
+    fail(res, 'Failed to create exam.', err);
   }
 };
 
-const getExams = async (
-  req,
-  res
-) => {
+const getExams = async (req, res) => {
   try {
-    const [rows] =
-      await db
-        .promise()
-        .query(`
-          SELECT
-            e.exam_id,
-            e.exam_date,
-            e.start_time,
-            e.end_time,
-            e.exam_type,
-            e.created_by,
-            GROUP_CONCAT(
-              ec.course_code
-              ORDER BY ec.course_code
-              SEPARATOR ', '
-            ) AS course_code,
-            COALESCE(
-              SUM(ec.total_students),
-              0
-            ) AS total_students
-          FROM exams e
-          LEFT JOIN exam_courses ec
-            ON ec.exam_id = e.exam_id
-          GROUP BY e.exam_id
-          ORDER BY e.exam_date, e.start_time
-        `);
+    const [rows] = await db.promise().query(`
+      SELECT
+        e.exam_id,
+        e.exam_date,
+        e.start_time,
+        e.end_time,
+        e.exam_type,
+        e.created_by,
+        GROUP_CONCAT(
+          ec.course_code
+          ORDER BY ec.course_code
+          SEPARATOR ', '
+        ) AS course_code,
+        COALESCE(
+          SUM(ec.total_students),
+          0
+        ) AS total_students
+      FROM exams e
+      LEFT JOIN exam_courses ec
+        ON ec.exam_id = e.exam_id
+      GROUP BY e.exam_id
+      ORDER BY e.exam_date, e.start_time
+    `);
 
     res.json({
       success: true,
       exams: rows
     });
   } catch (err) {
-    fail(
-      res,
-      'Failed to fetch exams.',
-      err
-    );
+    fail(res, 'Failed to fetch exams.', err);
   }
 };
 
-const deleteExam = async (
-  req,
-  res
-) => {
+const deleteExam = async (req, res) => {
   try {
-    await db
-      .promise()
-      .query(
-        'DELETE FROM exams WHERE exam_id = ?',
-        [req.params.id]
-      );
+    const [result] = await db.promise().query(
+      'DELETE FROM exams WHERE exam_id = ?',
+      [req.params.id]
+    );
+
+    if (!result.affectedRows) {
+      return res.status(404).json({
+        success: false,
+        message: 'Exam not found.'
+      });
+    }
 
     res.json({
       success: true,
-      message:
-        'Exam deleted successfully.'
+      message: 'Exam deleted successfully.'
     });
   } catch (err) {
-    fail(
-      res,
-      'Failed to delete exam.',
-      err
-    );
+    fail(res, 'Failed to delete exam.', err);
   }
 };
 
-const updateExam = async (
-  req,
-  res
-) => {
+const updateExam = async (req, res) => {
   const {
     exam_date,
     start_time,
     end_time,
-    exam_type
+    exam_type,
+    course_code,
+    total_students
   } = req.body || {};
 
   if (
@@ -206,116 +173,145 @@ const updateExam = async (
   ) {
     return res.status(400).json({
       success: false,
-      message:
-        'Exam date and times are required.'
+      message: 'Exam date and times are required.'
     });
   }
 
   try {
-    const [result] =
-      await db
-        .promise()
-        .query(
-          'UPDATE exams SET exam_date=?,start_time=?,end_time=?,exam_type=? WHERE exam_id=?',
-          [
-            exam_date,
-            start_time,
-            end_time,
-            exam_type || null,
-            req.params.id
-          ]
+    const connection = await db.promise().getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      const [result] = await connection.query(
+        `UPDATE exams
+         SET exam_date = ?,
+             start_time = ?,
+             end_time = ?,
+             exam_type = ?
+         WHERE exam_id = ?`,
+        [
+          exam_date,
+          start_time,
+          end_time,
+          exam_type || null,
+          req.params.id
+        ]
+      );
+
+      if (!result.affectedRows) {
+        await connection.rollback();
+
+        return res.status(404).json({
+          success: false,
+          message: 'Exam not found.'
+        });
+      }
+
+      if (course_code) {
+        const [courseRows] = await connection.query(
+          `SELECT exam_course_id
+           FROM exam_courses
+           WHERE exam_id = ?
+           ORDER BY exam_course_id
+           LIMIT 1`,
+          [req.params.id]
         );
 
-    if (!result.affectedRows) {
-      return res.status(404).json({
-        success: false,
-        message:
-          'Exam not found.'
-      });
-    }
+        if (courseRows.length) {
+          await connection.query(
+            `UPDATE exam_courses
+             SET course_code = ?,
+                 total_students = ?
+             WHERE exam_course_id = ?`,
+            [
+              course_code,
+              Number(total_students) || 0,
+              courseRows[0].exam_course_id
+            ]
+          );
+        } else {
+          await connection.query(
+            `INSERT INTO exam_courses
+             (exam_id, course_code, total_students)
+             VALUES (?, ?, ?)`,
+            [
+              req.params.id,
+              course_code,
+              Number(total_students) || 0
+            ]
+          );
+        }
+      }
 
-    res.json({
-      success: true,
-      message:
-        'Exam updated successfully.'
-    });
+      await connection.commit();
+
+      res.json({
+        success: true,
+        exam_id: Number(req.params.id),
+        message: 'Exam updated successfully.'
+      });
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
   } catch (err) {
-    fail(
-      res,
-      'Failed to update exam.',
-      err
-    );
+    fail(res, 'Failed to update exam.', err);
   }
 };
 
-function parseXlsxBuffer(
-  buffer
-) {
-  const workbook =
-    XLSX.read(buffer, {
-      type: 'buffer',
-      raw: false
-    });
+function parseXlsxBuffer(buffer) {
+  const workbook = XLSX.read(buffer, {
+    type: 'buffer',
+    raw: false
+  });
 
   const sheet =
-    workbook.Sheets[
-      workbook.SheetNames[0]
-    ];
+    workbook.Sheets[workbook.SheetNames[0]];
 
-  const rows =
-    XLSX.utils.sheet_to_json(
-      sheet,
-      {
-        defval: ''
-      }
-    );
+  const rows = XLSX.utils.sheet_to_json(
+    sheet,
+    {
+      defval: ''
+    }
+  );
 
-  const value = (
-    row,
+  const value = (row, names) =>
     names
-  ) =>
-    names
-      .map(
-        (name) =>
-          row[name]
-      )
-      .find(
-        (item) =>
-          item !== undefined
-      ) || '';
+      .map((name) => row[name])
+      .find((item) => item !== undefined) || '';
 
   return rows
     .map((row) => ({
-      student_id:
-        String(
-          value(row, [
-            'student_id',
-            'Student ID',
-            'StudentID',
-            'id',
-            'ID'
-          ])
-        ).trim(),
+      student_id: String(
+        value(row, [
+          'student_id',
+          'Student ID',
+          'StudentID',
+          'id',
+          'ID'
+        ])
+      ).trim(),
 
-      student_name:
-        String(
-          value(row, [
-            'name',
-            'Name',
-            'student_name',
-            'Student Name'
-          ])
-        ).trim(),
+      student_name: String(
+        value(row, [
+          'name',
+          'Name',
+          'student_name',
+          'Student Name'
+        ])
+      ).trim(),
 
-      course_code:
-        String(
-          value(row, [
-            'course_code',
-            'Course Code',
-            'Course',
-            'course'
-          ])
-        ).trim(),
+      course_code: String(
+        value(row, [
+          'course_code',
+          'Course Code',
+          'Course',
+          'course'
+        ])
+      ).trim(),
 
       semester:
         Number(
@@ -325,29 +321,21 @@ function parseXlsxBuffer(
           ])
         ) || 1,
 
-      section:
-        String(
-          value(row, [
-            'section',
-            'Section'
-          ])
-        ).trim()
+      section: String(
+        value(row, [
+          'section',
+          'Section'
+        ])
+      ).trim()
     }))
-    .filter(
-      (student) =>
-        student.student_id
-    );
+    .filter((student) => student.student_id);
 }
 
-const uploadZip = async (
-  req,
-  res
-) => {
+const uploadZip = async (req, res) => {
   if (!req.file) {
     return res.status(400).json({
       success: false,
-      message:
-        'A ZIP file is required.'
+      message: 'A ZIP file is required.'
     });
   }
 
@@ -359,9 +347,7 @@ const uploadZip = async (
 
     const entry = isXlsx
       ? null
-      : new AdmZip(
-          req.file.buffer
-        )
+      : new AdmZip(req.file.buffer)
           .getEntries()
           .find((item) =>
             item.entryName
@@ -372,30 +358,25 @@ const uploadZip = async (
     if (!isXlsx && !entry) {
       return res.status(400).json({
         success: false,
-        message:
-          'No .xlsx file was found inside the ZIP.'
+        message: 'No .xlsx file was found inside the ZIP.'
       });
     }
 
-    const students =
-      parseXlsxBuffer(
-        isXlsx
-          ? req.file.buffer
-          : entry.getData()
-      );
+    const students = parseXlsxBuffer(
+      isXlsx
+        ? req.file.buffer
+        : entry.getData()
+    );
 
     if (!students.length) {
       return res.status(400).json({
         success: false,
-        message:
-          'No student rows found in the Excel file.'
+        message: 'No student rows found in the Excel file.'
       });
     }
 
     const connection =
-      await db
-        .promise()
-        .getConnection();
+      await db.promise().getConnection();
 
     try {
       await connection.beginTransaction();
@@ -404,12 +385,11 @@ const uploadZip = async (
         if (student.course_code) {
           await connection.query(
             `INSERT INTO courses
-              (course_code,section,course_title,semester,department)
-             VALUES
-              (?,?,?,?,?)
+              (course_code, section, course_title, semester, department)
+             VALUES (?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
-              semester=VALUES(semester),
-              section=VALUES(section)`,
+              semester = VALUES(semester),
+              section = VALUES(section)`,
             [
               student.course_code,
               student.section || 'A',
@@ -422,21 +402,18 @@ const uploadZip = async (
 
         await connection.query(
           `INSERT INTO students
-            (student_id,student_name,semester,course_code,section)
-           VALUES
-            (?,?,?,?,?)
+            (student_id, student_name, semester, course_code, section)
+           VALUES (?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE
-            student_name=VALUES(student_name),
-            semester=VALUES(semester),
-            course_code=VALUES(course_code),
-            section=VALUES(section)`,
+            student_name = VALUES(student_name),
+            semester = VALUES(semester),
+            course_code = VALUES(course_code),
+            section = VALUES(section)`,
           [
             student.student_id,
-            student.student_name ||
-              'Unknown Student',
+            student.student_name || 'Unknown Student',
             student.semester,
-            student.course_code ||
-              'UNASSIGNED',
+            student.course_code || 'UNASSIGNED',
             student.section || 'A'
           ]
         );
@@ -446,34 +423,21 @@ const uploadZip = async (
 
       res.json({
         success: true,
-        imported:
-          students.length,
+        imported: students.length,
         students
       });
     } catch (err) {
       await connection.rollback();
-
-      fail(
-        res,
-        'Failed to import students.',
-        err
-      );
+      fail(res, 'Failed to import students.', err);
     } finally {
       connection.release();
     }
   } catch (err) {
-    fail(
-      res,
-      'Invalid ZIP file.',
-      err
-    );
+    fail(res, 'Invalid ZIP file.', err);
   }
 };
 
-const allocate = async (
-  req,
-  res
-) => {
+const allocate = async (req, res) => {
   const {
     exam_id,
     roomIds,
@@ -484,283 +448,196 @@ const allocate = async (
   if (!exam_id) {
     return res.status(400).json({
       success: false,
-      message:
-        'Exam ID is required.'
+      message: 'Exam ID is required.'
     });
   }
 
-  if (
-    !Array.isArray(roomIds) ||
-    !roomIds.length
-  ) {
+  if (!Array.isArray(roomIds) || !roomIds.length) {
     return res.status(400).json({
       success: false,
-      message:
-        'Please select at least one room.'
+      message: 'Please select at least one room.'
     });
   }
 
   try {
-    const [examRows] =
-      await db
-        .promise()
-        .query(
-          'SELECT exam_id FROM exams WHERE exam_id=? LIMIT 1',
-          [exam_id]
-        );
+    const [examRows] = await db.promise().query(
+      'SELECT exam_id FROM exams WHERE exam_id = ? LIMIT 1',
+      [exam_id]
+    );
 
     if (!examRows.length) {
       return res.status(404).json({
         success: false,
-        message:
-          'Exam not found.'
+        message: 'Exam not found.'
       });
     }
 
-    const [rooms] =
-      await db
-        .promise()
-        .query(
-          `SELECT
-            room_id,
-            room_number,
-            building,
-            capacity
-           FROM rooms
-           WHERE room_id IN (?)
-           AND status='Available'`,
-          [roomIds]
-        );
+    const [rooms] = await db.promise().query(
+      `SELECT
+        room_id,
+        room_number,
+        building,
+        capacity
+       FROM rooms
+       WHERE room_id IN (?)
+       AND status = 'Available'`,
+      [roomIds]
+    );
 
     if (!rooms.length) {
       return res.status(400).json({
         success: false,
-        message:
-          'No available selected rooms were found.'
+        message: 'No available selected rooms were found.'
       });
     }
 
-    if (
-      rooms.length !==
-      roomIds.length
-    ) {
+    if (rooms.length !== roomIds.length) {
       return res.status(400).json({
         success: false,
-        message:
-          'One or more selected rooms are no longer available.'
+        message: 'One or more selected rooms are no longer available.'
       });
     }
 
-    const [
-      examCourseRows
-    ] = await db
-      .promise()
-      .query(
+    const [examCourseRows] =
+      await db.promise().query(
         `SELECT
           course_code,
           total_students
          FROM exam_courses
-         WHERE exam_id=?`,
+         WHERE exam_id = ?`,
         [exam_id]
       );
 
     if (!examCourseRows.length) {
       return res.status(400).json({
         success: false,
-        message:
-          'No courses are assigned to this exam.'
+        message: 'No courses are assigned to this exam.'
       });
     }
 
     const courseCodes =
       examCourseRows.map(
-        (row) =>
-          row.course_code
+        (row) => row.course_code
       );
 
     let rows;
 
     if (
-      Array.isArray(
-        studentIds
-      ) &&
+      Array.isArray(studentIds) &&
       studentIds.length
     ) {
-      [
-        rows
-      ] =
-        await db
-          .promise()
-          .query(
-            `SELECT
-              student_id,
-              student_name AS name,
-              course_code,
-              section,
-              semester
-             FROM students
-             WHERE student_id IN (?)
-             AND course_code IN (?)`,
-            [
-              studentIds,
-              courseCodes
-            ]
-          );
+      [rows] = await db.promise().query(
+        `SELECT
+          student_id,
+          student_name AS name,
+          course_code,
+          section,
+          semester
+         FROM students
+         WHERE student_id IN (?)
+         AND course_code IN (?)`,
+        [
+          studentIds,
+          courseCodes
+        ]
+      );
     } else {
-      [
-        rows
-      ] =
-        await db
-          .promise()
-          .query(
-            `SELECT
-              student_id,
-              student_name AS name,
-              course_code,
-              section,
-              semester
-             FROM students
-             WHERE course_code IN (?)`,
-            [courseCodes]
-          );
+      [rows] = await db.promise().query(
+        `SELECT
+          student_id,
+          student_name AS name,
+          course_code,
+          section,
+          semester
+         FROM students
+         WHERE course_code IN (?)`,
+        [courseCodes]
+      );
     }
 
     if (!rows.length) {
       return res.status(400).json({
         success: false,
-        message:
-          'No students were found for the courses in this exam.'
+        message: 'No students were found for the courses in this exam.'
       });
     }
 
-    const students =
-      rows.map((row) => ({
-        student_id:
-          row.student_id,
+    const students = rows.map((row) => ({
+      student_id: row.student_id,
+      name: row.name || 'Unknown',
+      course_code: row.course_code || 'UNASSIGNED',
+      section: row.section || '',
+      semester: row.semester
+    }));
 
-        name:
-          row.name ||
-          'Unknown',
+    const capacities = Object.fromEntries(
+      rooms.map((room) => [
+        String(room.room_id),
+        Number(room.capacity)
+      ])
+    );
 
-        course_code:
-          row.course_code ||
-          'UNASSIGNED',
+    const roomLayouts = Object.fromEntries(
+      rooms.map((room) => {
+        const columns = 6;
 
-        section:
-          row.section || '',
+        const rowsCount = Math.ceil(
+          Number(room.capacity) / columns
+        );
 
-        semester:
-          row.semester
-      }));
-
-    const capacities =
-      Object.fromEntries(
-        rooms.map(
-          (room) => [
-            String(
-              room.room_id
-            ),
-            Number(
-              room.capacity
-            )
-          ]
-        )
-      );
-
-    const roomLayouts =
-      Object.fromEntries(
-        rooms.map(
-          (room) => {
-            const columns = 6;
-
-            const rowsCount =
-              Math.ceil(
-                Number(
-                  room.capacity
-                ) /
-                  columns
-              );
-
-            return [
-              String(
-                room.room_id
-              ),
-              {
-                rows:
-                  rowsCount,
-                columns
-              }
-            ];
+        return [
+          String(room.room_id),
+          {
+            rows: rowsCount,
+            columns
           }
-        )
-      );
+        ];
+      })
+    );
 
     const totalCapacity =
       rooms.reduce(
         (total, room) =>
-          total +
-          Number(
-            room.capacity || 0
-          ),
+          total + Number(room.capacity || 0),
         0
       );
 
-    if (
-      students.length >
-      totalCapacity
-    ) {
+    if (students.length > totalCapacity) {
       return res.status(400).json({
         success: false,
-        message:
-          `Selected rooms have ${totalCapacity} seats, but ${students.length} students need seats.`,
-        availableSeats:
-          totalCapacity,
-        requiredSeats:
-          students.length
+        message: `Selected rooms have ${totalCapacity} seats, but ${students.length} students need seats.`,
+        availableSeats: totalCapacity,
+        requiredSeats: students.length
       });
     }
 
-    const result =
-      allocateStudents(
-        students,
-        rooms.map(
-          (room) =>
-            String(
-              room.room_id
-            )
-        ),
-        {
-          maxCoursesPerRoom:
-            Number(
-              maxCoursesPerRoom
-            ) || 4,
-
-          capacities,
-
-          roomLayouts
-        }
-      );
+    const result = allocateStudents(
+      students,
+      rooms.map((room) => String(room.room_id)),
+      {
+        maxCoursesPerRoom:
+          Number(maxCoursesPerRoom) || 4,
+        capacities,
+        roomLayouts
+      }
+    );
 
     if (!result.allocations) {
       return res.status(400).json({
         success: false,
-        message:
-          'Allocation failed.',
-        warnings:
-          result.warnings || []
+        message: 'Allocation failed.',
+        warnings: result.warnings || []
       });
     }
 
     const connection =
-      await db
-        .promise()
-        .getConnection();
+      await db.promise().getConnection();
 
     try {
       await connection.beginTransaction();
 
       await connection.query(
-        'DELETE FROM seat_allocations WHERE exam_id=?',
+        'DELETE FROM seat_allocations WHERE exam_id = ?',
         [exam_id]
       );
 
@@ -769,27 +646,18 @@ const allocate = async (
       Object.entries(
         result.allocations
       ).forEach(
-        ([
-          roomId,
-          roomStudents
-        ]) => {
-          roomStudents.forEach(
-            (student) => {
-              inserts.push([
-                exam_id,
-                student.student_id,
-                student.course_code,
-                Number(roomId),
-                Number(student.row),
-                Number(
-                  student.column
-                ),
-                Number(
-                  student.seat_no
-                )
-              ]);
-            }
-          );
+        ([roomId, roomStudents]) => {
+          roomStudents.forEach((student) => {
+            inserts.push([
+              exam_id,
+              student.student_id,
+              student.course_code,
+              Number(roomId),
+              Number(student.row),
+              Number(student.column),
+              Number(student.seat_no)
+            ]);
+          });
         }
       );
 
@@ -814,32 +682,21 @@ const allocate = async (
 
       const roomMap =
         Object.fromEntries(
-          rooms.map(
-            (room) => [
-              String(
-                room.room_id
-              ),
-              room
-            ]
-          )
+          rooms.map((room) => [
+            String(room.room_id),
+            room
+          ])
         );
 
-      const savedAllocations =
-        {};
+      const savedAllocations = {};
 
       Object.entries(
         result.allocations
       ).forEach(
-        ([
-          roomId,
-          roomStudents
-        ]) => {
-          const room =
-            roomMap[roomId];
+        ([roomId, roomStudents]) => {
+          const room = roomMap[roomId];
 
-          savedAllocations[
-            roomId
-          ] =
+          savedAllocations[roomId] =
             roomStudents.map(
               (student) => ({
                 student_id:
@@ -854,36 +711,25 @@ const allocate = async (
                   student.course_code,
 
                 section:
-                  student.section ||
-                  '',
+                  student.section || '',
 
                 building:
-                  room?.building ||
-                  '',
+                  room?.building || '',
 
                 room_number:
-                  room?.room_number ||
-                  '',
+                  room?.room_number || '',
 
                 room_id:
-                  Number(
-                    roomId
-                  ),
+                  Number(roomId),
 
                 seat_no:
-                  Number(
-                    student.seat_no
-                  ),
+                  Number(student.seat_no),
 
                 row:
-                  Number(
-                    student.row
-                  ),
+                  Number(student.row),
 
                 column:
-                  Number(
-                    student.column
-                  )
+                  Number(student.column)
               })
             );
         }
@@ -892,83 +738,62 @@ const allocate = async (
       res.json({
         success: true,
         exam_id,
-        allocations:
-          savedAllocations,
-        roomInfo:
-          result.roomInfo || {},
-        warnings:
-          result.warnings || []
+        allocations: savedAllocations,
+        roomInfo: result.roomInfo || {},
+        warnings: result.warnings || []
       });
     } catch (err) {
       await connection.rollback();
-
       throw err;
     } finally {
       connection.release();
     }
   } catch (err) {
-    fail(
-      res,
-      'Failed to generate seat plan.',
-      err
-    );
+    fail(res, 'Failed to generate seat plan.', err);
   }
 };
 
-const getAllocations = async (
-  req,
-  res
-) => {
+const getAllocations = async (req, res) => {
   try {
     const studentFilter =
-      req.user.role ===
-      'student'
+      req.user.role === 'student'
         ? ' AND a.student_id = ?'
         : '';
 
     const params =
-      req.user.role ===
-      'student'
+      req.user.role === 'student'
         ? [
             req.params.id,
-            req.user.email.split(
-              '@'
-            )[0]
+            req.user.email.split('@')[0]
           ]
         : [req.params.id];
 
     const [rows] =
-      await db
-        .promise()
-        .query(
-          `SELECT
-            a.*,
-            r.room_number,
-            r.building,
-            s.student_name
-           FROM seat_allocations a
-           LEFT JOIN rooms r
-             ON r.room_id=a.room_id
-           LEFT JOIN students s
-             ON s.student_id=a.student_id
-           WHERE a.exam_id=?
-           ${studentFilter}
-           ORDER BY
-             r.room_number,
-             a.seat_no`,
-          params
-        );
+      await db.promise().query(
+        `SELECT
+          a.*,
+          r.room_number,
+          r.building,
+          s.student_name
+         FROM seat_allocations a
+         LEFT JOIN rooms r
+           ON r.room_id = a.room_id
+         LEFT JOIN students s
+           ON s.student_id = a.student_id
+         WHERE a.exam_id = ?
+         ${studentFilter}
+         ORDER BY
+           r.room_number,
+           a.seat_no`,
+        params
+      );
 
     res.json({
       success: true,
       allocations: rows
     });
   } catch (err) {
-    fail(
-      res,
-      'Failed to fetch seat plan.',
-      err
-    );
+    fail(res, 'Failed to fetch seat plan.', err);
   }
 };
 
@@ -980,4 +805,4 @@ module.exports = {
   uploadZip,
   allocate,
   getAllocations
-};
+};;

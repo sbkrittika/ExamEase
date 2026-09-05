@@ -104,14 +104,16 @@ function getCourseSection(course) {
 export default function Exams() {
   const [exams, setExams] = useState([]);
   const [courses, setCourses] = useState([]);
+  const [students, setStudents] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
     course: '',
     date: '',
-    time: '',
-    duration: '2 Hours',
+    timeRange: '10:00-11:30',
+    semester: '',
+    sections: [],
     examType: 'Midterm',
     roomCount: '2',
     studentList: ''
@@ -129,10 +131,11 @@ export default function Exams() {
       setLoading(true);
       setError('');
 
-      const [examData, courseData] =
+      const [examData, courseData, studentData] =
         await Promise.all([
           apiRequest('/api/exams'),
-          apiRequest('/api/courses')
+          apiRequest('/api/courses'),
+          apiRequest('/api/students')
         ]);
 
       const loadedExams = (
@@ -143,13 +146,8 @@ export default function Exams() {
         date: exam.exam_date
           ? String(exam.exam_date).slice(0, 10)
           : '',
-        time: exam.start_time
-          ? String(exam.start_time).slice(0, 5)
-          : '',
-        endTime: exam.end_time
-          ? String(exam.end_time).slice(0, 5)
-          : '',
-        duration: exam.exam_type || '2 Hours',
+        timeRange: `${String(exam.start_time || '').slice(0, 5)}-${String(exam.end_time || '').slice(0, 5)}`,
+        time: exam.start_time ? String(exam.start_time).slice(0, 5) : '',
 
         examType:
           exam.exam_type === 'Final'
@@ -171,6 +169,7 @@ export default function Exams() {
 
       setExams(loadedExams);
       setCourses(courseData.courses || []);
+      setStudents(studentData.students || []);
     } catch (err) {
       setError(
         err.message ||
@@ -277,8 +276,9 @@ export default function Exams() {
     setForm({
       course: '',
       date: '',
-      time: '',
-      duration: '2 Hours',
+      timeRange: '10:00-11:30',
+      semester: '',
+      sections: [],
       examType: 'Midterm',
       roomCount: '2',
       studentList: ''
@@ -286,45 +286,6 @@ export default function Exams() {
 
     setEditingId(null);
     setShowForm(false);
-  };
-
-  const calculateEndTime = (
-    startTime,
-    duration
-  ) => {
-    if (!startTime) return '';
-
-    const [hours, minutes] =
-      startTime.split(':').map(Number);
-
-    const durationMatch = String(
-      duration
-    ).match(
-      /(\d+)\s*hour(?:s)?(?:\s*(?:and)?\s*(\d+)\s*minute)?/i
-    );
-
-    const durationMinutes = durationMatch
-      ? Number(durationMatch[1]) * 60 +
-        Number(durationMatch[2] || 0)
-      : 120;
-
-    const end = new Date(
-      2000,
-      0,
-      1,
-      hours,
-      minutes
-    );
-
-    end.setMinutes(
-      end.getMinutes() + durationMinutes
-    );
-
-    return `${String(
-      end.getHours()
-    ).padStart(2, '0')}:${String(
-      end.getMinutes()
-    ).padStart(2, '0')}`;
   };
 
   const handleSubmit = async (e) => {
@@ -335,43 +296,24 @@ export default function Exams() {
     if (
       !form.course ||
       !form.date ||
-      !form.time ||
-      !form.studentList
+      !form.timeRange ||
+      !form.semester ||
+      !form.sections.length
     ) {
       alert(
-        'Please fill in course, date, time and student list.'
+        'Please fill in course, date, time, semester and at least one section.'
       );
 
       return;
     }
 
-    const parsedStudents =
-      form.studentList
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((entry, index) => {
-          const parts = entry.split(',');
+    const parsedStudents = eligibleStudents.map((student) => ({
+      id: student.student_id,
+      name: student.student_name,
+      course: student.course_code
+    }));
 
-          const rawId =
-            parts[0]?.trim() ||
-            `AUTO-${index + 1}`;
-
-          const rawCourse =
-            parts[1]?.trim() ||
-            getCourseCode(form.course);
-
-          return {
-            id: rawId,
-            name: `Student ${rawId}`,
-            course: rawCourse
-          };
-        });
-
-    const endTime = calculateEndTime(
-      form.time,
-      form.duration
-    );
+    const [startTime, endTime] = form.timeRange.split('-');
 
     const courseCode =
       getCourseCode(form.course);
@@ -381,12 +323,14 @@ export default function Exams() {
 
       const payload = {
         exam_date: form.date,
-        start_time: form.time,
+        start_time: startTime,
         end_time: endTime,
+        time_range: form.timeRange,
         exam_type: form.examType,
         course_code: courseCode,
-        total_students:
-          parsedStudents.length
+        semester: Number(form.semester),
+        sections: form.sections,
+        total_students: parsedStudents.length
       };
 
       let response;
@@ -479,9 +423,9 @@ export default function Exams() {
       setForm({
         course: exam.course || '',
         date: exam.date || '',
-        time: exam.time || '',
-        duration:
-          exam.duration || '2 Hours',
+        timeRange: `${exam.time || ''}-${exam.endTime || ''}`,
+        semester: '',
+        sections: [],
 
         examType:
           exam.examType === 'Final'
@@ -589,6 +533,12 @@ export default function Exams() {
       }
     );
   };
+
+  const eligibleStudents = students.filter((student) =>
+    (!form.course || String(student.course_code || '').trim() === getCourseCode(form.course))
+    && (!form.semester || String(student.semester) === String(form.semester))
+    && (!form.sections.length || form.sections.includes(String(student.section || 'A')))
+  );
 
   return (
     <div className="space-y-6">
@@ -748,89 +698,40 @@ export default function Exams() {
                 Time *
               </label>
 
-              <input
-                type="time"
-                name="time"
-                value={form.time}
-                onChange={handleChange}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Duration
-              </label>
-
-              <select
-                name="duration"
-                value={form.duration}
-                onChange={handleChange}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-              >
-                <option value="1 Hour">
-                  1 Hour
-                </option>
-
-                <option value="1 Hour 15 Minutes">
-                  1 Hour 15 Minutes
-                </option>
-
-                <option value="1 Hour 30 Minutes">
-                  1 Hour 30 Minutes
-                </option>
-
-                <option value="2 Hours">
-                  2 Hours
-                </option>
-
-                <option value="3 Hours">
-                  3 Hours
-                </option>
-
-                <option value="4 Hours">
-                  4 Hours
-                </option>
+              <select name="timeRange" value={form.timeRange} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="10:00-11:30">10:00 AM - 11:30 AM</option>
+                <option value="14:00-15:30">2:00 PM - 3:30 PM</option>
+                <option value="18:00-19:30">6:00 PM - 7:30 PM</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Rooms
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Semester *</label>
+              <select name="semester" value={form.semester} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">Select semester...</option>
+                {[1,2,3,4,5,6,7,8].map((semester) => <option key={semester} value={semester}>Semester {semester}</option>)}
+              </select>
+            </div>
 
-              <input
-                type="number"
-                min="1"
-                max="10"
-                name="roomCount"
-                value={form.roomCount}
-                onChange={handleChange}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-              />
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Sections *</label>
+              <div className="flex flex-wrap gap-2 pt-2">{['A','B','C','D','E','F'].map((section) => <label key={section} className="flex items-center gap-1 text-sm"><input type="checkbox" checked={form.sections.includes(section)} onChange={() => setForm((previous) => ({ ...previous, sections: previous.sections.includes(section) ? previous.sections.filter((item) => item !== section) : [...previous.sections, section] }))} />{section}</label>)}</div>
             </div>
 
             <div className="md:col-span-2 lg:col-span-4">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Student IDs / list
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Student IDs / list ({eligibleStudents.length})</label>
 
               <textarea
                 name="studentList"
                 rows="5"
-                value={form.studentList}
-                onChange={handleChange}
+                value={eligibleStudents.map((student) => `${student.student_id} - ${student.student_name || 'Unknown'} (${student.section || 'A'})`).join('\n')}
+                readOnly
                 className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                placeholder={`One student ID per line.
-
-Example:
-2211001,CSE 311.1
-2211002,CSE 311.1
-2211003,CSE 311.2`}
+                placeholder="Select a semester and section to load students."
               />
 
               <p className="text-xs text-slate-400 mt-1">
-                Format: Student ID, Course.Section
+                Students are loaded automatically from the selected semester and sections.
               </p>
             </div>
 
@@ -942,10 +843,7 @@ Example:
                       />
 
                       <span>
-                        {formatTime(exam.time)}
-                        {exam.duration
-                          ? ` (${exam.duration})`
-                          : ''}
+                        {formatTime(exam.time)} - {formatTime(exam.endTime)}
                       </span>
                     </span>
 

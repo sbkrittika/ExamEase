@@ -377,12 +377,6 @@ function allocateStudents(
           queue.length > 0
       )
     ) {
-      queueEntries.sort(
-        (a, b) =>
-          b[1].length -
-          a[1].length
-      );
-
       for (
         const [
           courseKey,
@@ -521,4 +515,3 @@ module.exports = {
 module.exports = {
   allocateStudents,
 };
-

@@ -12,20 +12,31 @@ const fail = (res, message, err) => {
   });
 };
 
+function parseExamTime(timeRange) {
+  const match = String(timeRange || '').match(/(\d{1,2}:\d{2})\s*(?:AM|PM)?\s*[-–]\s*(\d{1,2}:\d{2})\s*(?:AM|PM)?/i);
+  return match ? { start: match[1], end: match[2] } : null;
+}
+
 const addExam = async (req, res) => {
   const {
     exam_date,
     start_time,
     end_time,
+    time_range,
     exam_type,
     course_code,
     total_students
   } = req.body || {};
 
+  const parsedTime = time_range ? parseExamTime(time_range) : null;
+  const examStart = parsedTime?.start || start_time;
+  const examEnd = parsedTime?.end || end_time;
+  const sections = Array.isArray(req.body.sections) ? req.body.sections : [];
+
   if (
     !exam_date ||
-    !start_time ||
-    !end_time ||
+    !examStart ||
+    !examEnd ||
     !course_code ||
     !Number.isInteger(Number(total_students)) ||
     Number(total_students) < 0
@@ -62,8 +73,8 @@ const addExam = async (req, res) => {
         VALUES (?, ?, ?, ?, ?)`,
         [
           exam_date,
-          start_time,
-          end_time,
+          examStart,
+          examEnd,
           exam_type || null,
           req.user.user_id
         ]
@@ -79,6 +90,13 @@ const addExam = async (req, res) => {
           Number(total_students)
         ]
       );
+
+      if (req.body.semester && sections.length) {
+        await connection.query(
+          'INSERT INTO exam_sections (exam_id, semester, section) VALUES ?',
+          [sections.map((section) => [exam.insertId, Number(req.body.semester), String(section).trim()])]
+        );
+      }
 
       await connection.commit();
 
@@ -161,12 +179,16 @@ const updateExam = async (req, res) => {
     exam_date,
     start_time,
     end_time,
+    time_range,
     exam_type,
     course_code,
     total_students
   } = req.body || {};
 
-  if (!exam_date || !start_time || !end_time) {
+  const parsedTime = time_range ? parseExamTime(time_range) : null;
+  const examStart = parsedTime?.start || start_time;
+  const examEnd = parsedTime?.end || end_time;
+  if (!exam_date || !examStart || !examEnd) {
     return res.status(400).json({
       success: false,
       message: 'Exam date and times are required.'
@@ -188,8 +210,8 @@ const updateExam = async (req, res) => {
          WHERE exam_id = ?`,
         [
           exam_date,
-          start_time,
-          end_time,
+          examStart,
+          examEnd,
           exam_type || null,
           req.params.id
         ]
@@ -237,6 +259,16 @@ const updateExam = async (req, res) => {
               Number(total_students) || 0
             ]
           );
+        }
+
+        if (Array.isArray(req.body.sections) && req.body.semester) {
+          await connection.query('DELETE FROM exam_sections WHERE exam_id = ?', [req.params.id]);
+          if (req.body.sections.length) {
+            await connection.query(
+              'INSERT INTO exam_sections (exam_id, semester, section) VALUES ?',
+              [req.body.sections.map((section) => [req.params.id, Number(req.body.semester), String(section).trim()])]
+            );
+          }
         }
       }
 
@@ -512,16 +544,18 @@ const uploadZip = async (req, res) => {
         student.student_id,
         student.student_name || 'Unknown Student',
         student.semester,
+        student.section || 'A',
         student.course_code || 'UNASSIGNED'
       ]);
 
       await connection.query(
         `INSERT INTO students
-          (student_id, student_name, semester, course_code)
+          (student_id, student_name, semester, section, course_code)
          VALUES ?
          ON DUPLICATE KEY UPDATE
           student_name = VALUES(student_name),
           semester = VALUES(semester),
+          section = VALUES(section),
           course_code = VALUES(course_code)`,
         [studentRows]
       );
@@ -627,6 +661,14 @@ const allocate = async (req, res) => {
         (row) => row.course_code
       );
 
+    const [examSections] = await db.promise().query(
+      'SELECT semester, section FROM exam_sections WHERE exam_id = ?',
+      [exam_id]
+    );
+    const hasSectionFilter = examSections.length > 0;
+    const sectionParams = hasSectionFilter
+      ? [examSections.map((item) => Number(item.semester)), examSections.map((item) => item.section)]
+      : [];
     let rows;
 
     if (
@@ -642,10 +684,13 @@ const allocate = async (req, res) => {
           semester
          FROM students
          WHERE student_id IN (?)
-         AND course_code IN (?)`,
+         AND course_code IN (?)
+         ${hasSectionFilter ? 'AND semester IN (?) AND section IN (?)' : ''}
+         ORDER BY section, student_id`,
         [
-          studentIds,
-          courseCodes
+         studentIds,
+         courseCodes,
+         ...sectionParams
         ]
       );
     } else {
@@ -657,8 +702,10 @@ const allocate = async (req, res) => {
           section,
           semester
          FROM students
-         WHERE course_code IN (?)`,
-        [courseCodes]
+         WHERE course_code IN (?)
+         ${hasSectionFilter ? 'AND semester IN (?) AND section IN (?)' : ''}
+         ORDER BY section, student_id`,
+        [courseCodes, ...sectionParams]
       );
     }
 

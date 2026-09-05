@@ -13,7 +13,7 @@ const asError = (res, message, err) => {
 const listStudents = async (req, res) => {
     try {
         const [rows] = await db.promise().query(
-            "SELECT student_id, student_name, semester, course_code FROM students ORDER BY student_name, student_id"
+            "SELECT student_id, student_name, semester, section, course_code FROM students ORDER BY student_name, student_id"
         );
 
         res.json({
@@ -30,10 +30,11 @@ const saveStudent = async (req, res) => {
         student_id,
         student_name,
         semester,
+        section,
         course_code
     } = req.body || {};
 
-    if (!student_id || !student_name || !semester || !course_code) {
+    if (!student_id || !student_name || !semester || !section || !course_code) {
         return res.status(400).json({
             success: false,
             message: "Student ID, name, semester and course are required."
@@ -42,11 +43,12 @@ const saveStudent = async (req, res) => {
 
     try {
         await db.promise().query(
-            "INSERT INTO students (student_id, student_name, semester, course_code) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE student_name=VALUES(student_name), semester=VALUES(semester), course_code=VALUES(course_code)",
+            "INSERT INTO students (student_id, student_name, semester, section, course_code) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE student_name=VALUES(student_name), semester=VALUES(semester), section=VALUES(section), course_code=VALUES(course_code)",
             [
                 String(student_id).trim(),
                 String(student_name).trim(),
                 Number(semester),
+                String(section).trim(),
                 String(course_code).trim()
             ]
         );

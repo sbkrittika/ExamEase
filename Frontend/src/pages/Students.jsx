@@ -8,12 +8,12 @@ export default function Students() {
   const [showForm, setShowForm] = useState(false);
   const [status, setStatus] = useState('');
   const [semesterFilter, setSemesterFilter] = useState('');
-  const [form, setForm] = useState({ id: '', name: '', email: '', department: 'CSE', year: '1st' });
+  const [form, setForm] = useState({ id: '', name: '', email: '', department: 'CSE', semester: '1', section: 'A' });
 
   useEffect(() => {
     const loadStudents = () => apiRequest('/api/students').then((data) => setStudents((data.students || []).map((student) => ({
       id: student.student_id, name: student.student_name, email: `${student.student_id}@eastdelta.edu.bd`,
-      department: student.course_code || 'General', year: student.semester
+      department: student.course_code || 'General', semester: student.semester, section: student.section || 'A'
     })))).catch((error) => setStatus(error.message));
     loadStudents();
     window.addEventListener('examease:data-imported', loadStudents);
@@ -24,7 +24,7 @@ export default function Students() {
     const q = searchTerm.toLowerCase();
     return students.filter((student) => {
       const haystack = `${student.id} ${student.name} ${student.email} ${student.department}`.toLowerCase();
-      return haystack.includes(q) && (!semesterFilter || String(student.year) === semesterFilter);
+      return haystack.includes(q) && (!semesterFilter || String(student.semester) === semesterFilter);
     });
   }, [searchTerm, semesterFilter, students]);
 
@@ -33,7 +33,7 @@ export default function Students() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
   const handleEdit = (student) => {
-    setForm({ id: student.id, name: student.name, email: student.email, department: student.department, year: String(student.year || '1st') });
+    setForm({ id: student.id, name: student.name, email: student.email, department: student.department, semester: String(student.semester || '1'), section: student.section || 'A' });
     setShowForm(true);
   };
 
@@ -49,16 +49,17 @@ export default function Students() {
       name: form.name.trim(),
       email: form.email.trim().toLowerCase(),
       department: form.department,
-      year: form.year,
+      semester: form.semester,
+      section: form.section,
     };
 
     try {
       await apiRequest('/api/students', { method: 'POST', body: JSON.stringify({
-        student_id: newStudent.id, student_name: newStudent.name, semester: Number(form.year.replace(/\D/g, '')) || 1, course_code: newStudent.department
+        student_id: newStudent.id, student_name: newStudent.name, semester: Number(form.semester) || 1, section: newStudent.section, course_code: newStudent.department
       }) });
       setStudents((prev) => [newStudent, ...prev.filter((item) => item.id !== newStudent.id)]);
     } catch (error) { setStatus(error.message); return; }
-    setForm({ id: '', name: '', email: '', department: 'CSE', year: '1st' });
+    setForm({ id: '', name: '', email: '', department: 'CSE', semester: '1', section: 'A' });
     setShowForm(false);
     setStatus('Student added successfully.');
   };
@@ -101,15 +102,8 @@ export default function Students() {
                 <option value="Physics">Physics</option>
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Year</label>
-              <select name="year" value={form.year} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                <option value="1st">1st</option>
-                <option value="2nd">2nd</option>
-                <option value="3rd">3rd</option>
-                <option value="4th">4th</option>
-              </select>
-            </div>
+            <div><label className="block text-sm font-medium text-slate-700 mb-1">Semester</label><select name="semester" value={form.semester} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">{[1,2,3,4,5,6,7,8].map((semester) => <option key={semester} value={semester}>{semester}</option>)}</select></div>
+            <div><label className="block text-sm font-medium text-slate-700 mb-1">Section</label><input name="section" value={form.section} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="A" /></div>
             <div className="md:col-span-2 lg:col-span-5 flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200">Cancel</button>
               <button type="submit" className="px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">Save Student</button>
@@ -138,7 +132,8 @@ export default function Students() {
                   <th className="px-6 py-4">Name</th>
                   <th className="px-6 py-4">Email</th>
                   <th className="px-6 py-4">Department</th>
-                  <th className="px-6 py-4">Year</th>
+                  <th className="px-6 py-4">Semester</th>
+                  <th className="px-6 py-4">Section</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -149,7 +144,8 @@ export default function Students() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{student.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{student.email}</td>
                     <td className="px-6 py-4 whitespace-nowrap"><span className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">{student.department}</span></td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{student.year}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{student.semester}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{student.section}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><div className="flex items-center justify-end space-x-2"><button type="button" onClick={() => handleEdit(student)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button><button type="button" onClick={async () => { try { await apiRequest(`/api/students/${student.id}`, { method: 'DELETE' }); setStudents((prev) => prev.filter((item) => item.id !== student.id)); } catch (error) { setStatus(error.message); } }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button></div></td>
                   </tr>
                 ))}

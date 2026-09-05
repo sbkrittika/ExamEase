@@ -468,43 +468,54 @@ const uploadZip = async (req, res) => {
     try {
       await connection.beginTransaction();
 
-      for (const student of uniqueStudents) {
-        if (student.course_code) {
-          await connection.query(
-            `INSERT INTO courses
-             (course_code, section, course_title, semester, department, credit)
-            VALUES (?, ?, ?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE
-              semester = VALUES(semester),
-              course_title = VALUES(course_title),
-              department = VALUES(department)`,
-            [
-             student.course_code,
-             student.section || 'A',
-             student.course_code,
-             student.semester,
-             student.course_code.split(/\s+/)[0] || 'General',
-             3
-            ]
-          );
-        }
+      const courseRows = Array.from(
+        new Map(
+          uniqueStudents
+             .filter((student) => student.course_code)
+             .map((student) => [
+               `${student.course_code}:${student.section || 'A'}`,
+               [
+                 student.course_code,
+                 student.section || 'A',
+                 student.course_code,
+                 student.semester,
+                 student.course_code.split(/\s+/)[0] || 'General',
+                 3
+               ]
+             ])
+        ).values()
+      );
 
+      if (courseRows.length) {
         await connection.query(
-          `INSERT INTO students
-            (student_id, student_name, semester, course_code)
-           VALUES (?, ?, ?, ?)
+          `INSERT INTO courses
+             (course_code, section, course_title, semester, department, credit)
+           VALUES ?
            ON DUPLICATE KEY UPDATE
-            student_name = VALUES(student_name),
-            semester = VALUES(semester),
-            course_code = VALUES(course_code)`,
-          [
-            student.student_id,
-            student.student_name || 'Unknown Student',
-            student.semester,
-            student.course_code || 'UNASSIGNED'
-          ]
+             semester = VALUES(semester),
+             course_title = VALUES(course_title),
+             department = VALUES(department)`,
+          [courseRows]
         );
       }
+
+      const studentRows = uniqueStudents.map((student) => [
+        student.student_id,
+        student.student_name || 'Unknown Student',
+        student.semester,
+        student.course_code || 'UNASSIGNED'
+      ]);
+
+      await connection.query(
+        `INSERT INTO students
+          (student_id, student_name, semester, course_code)
+         VALUES ?
+         ON DUPLICATE KEY UPDATE
+          student_name = VALUES(student_name),
+          semester = VALUES(semester),
+          course_code = VALUES(course_code)`,
+        [studentRows]
+      );
 
       await connection.commit();
 

@@ -14,16 +14,25 @@ export default function DataImport() {
 
     setUploading(true);
     setStatus('');
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 120000);
 
     try {
       const formData = new FormData();
       files.forEach((file) => formData.append('files', file));
-      const result = await apiRequest('/api/exams/upload-zip', { method: 'POST', body: formData });
+      const result = await apiRequest('/api/exams/upload-zip', {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal
+      });
       window.dispatchEvent(new CustomEvent('examease:data-imported', { detail: result }));
       setStatus(`Imported ${result.imported || 0} student records.`);
     } catch (error) {
-      setStatus(error.message || 'Unable to import the selected files.');
+      setStatus(error.name === 'AbortError'
+        ? 'Import timed out. Try a smaller file or ZIP.'
+        : error.message || 'Unable to import the selected files.');
     } finally {
+      window.clearTimeout(timeout);
       setUploading(false);
       event.target.value = '';
     }

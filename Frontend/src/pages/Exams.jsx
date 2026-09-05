@@ -142,7 +142,9 @@ export default function Exams() {
         examData.exams || []
       ).map((exam) => ({
         id: exam.exam_id,
-        course: exam.course_code || '',
+        course: exam.course_code
+          ? `${exam.course_code}${exam.course_title ? `: ${exam.course_title}` : ''}`
+          : '',
         date: exam.exam_date
           ? String(exam.exam_date).slice(0, 10)
           : '',
@@ -639,20 +641,12 @@ export default function Exams() {
                   Select a course...
                 </option>
 
-                {courses.map((course) => (
+                {Array.from(new Map(courses.map((course) => [course.course_code, course])).values()).map((course) => (
                   <option
-                    key={`${course.course_code}-${course.section}`}
-                    value={`${course.course_code}${
-                      course.section
-                        ? `.${course.section}`
-                        : ''
-                    }: ${course.course_title}`}
+                    key={course.course_code}
+                    value={`${course.course_code}: ${course.course_title}`}
                   >
-                    {course.course_code}
-                    {course.section
-                      ? `.${course.section}`
-                      : ''}
-                    : {course.course_title}
+                    {course.course_code}: {course.course_title}
                   </option>
                 ))}
               </select>

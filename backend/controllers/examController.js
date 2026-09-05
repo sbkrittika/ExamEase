@@ -131,6 +131,11 @@ const getExams = async (req, res) => {
           ORDER BY ec.course_code
           SEPARATOR ', '
         ) AS course_code,
+        GROUP_CONCAT(
+          DISTINCT c.course_title
+          ORDER BY c.course_title
+          SEPARATOR ', '
+        ) AS course_title,
         COALESCE(
           SUM(ec.total_students),
           0
@@ -138,6 +143,8 @@ const getExams = async (req, res) => {
       FROM exams e
       LEFT JOIN exam_courses ec
         ON ec.exam_id = e.exam_id
+      LEFT JOIN courses c
+        ON c.course_code = ec.course_code
       GROUP BY e.exam_id
       ORDER BY e.exam_date, e.start_time
     `);

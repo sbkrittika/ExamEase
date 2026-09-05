@@ -1,23 +1,23 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Plus, Edit2, Trash2, Upload, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Search, Plus, Edit2, Trash2, X, Printer } from 'lucide-react';
 import { apiRequest } from '../api';
 
 export default function Students() {
-  const fileInputRef = useRef(null);
-  const folderInputRef = useRef(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [students, setStudents] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState('');
   const [semesterFilter, setSemesterFilter] = useState('');
   const [form, setForm] = useState({ id: '', name: '', email: '', department: 'CSE', year: '1st' });
 
   useEffect(() => {
-    apiRequest('/api/students').then((data) => setStudents((data.students || []).map((student) => ({
+    const loadStudents = () => apiRequest('/api/students').then((data) => setStudents((data.students || []).map((student) => ({
       id: student.student_id, name: student.student_name, email: `${student.student_id}@eastdelta.edu.bd`,
       department: student.course_code || 'General', year: student.semester
     })))).catch((error) => setStatus(error.message));
+    loadStudents();
+    window.addEventListener('examease:data-imported', loadStudents);
+    return () => window.removeEventListener('examease:data-imported', loadStudents);
   }, []);
 
   const filtered = useMemo(() => {
@@ -63,28 +63,6 @@ export default function Students() {
     setStatus('Student added successfully.');
   };
 
-  const handleImportZip = async (event) => {
-    const file = Array.from(event.target.files || []).find((item) => item.name.toLowerCase().endsWith('.zip') || item.name.toLowerCase().endsWith('.xlsx'));
-    if (!file) return;
-
-    setUploading(true);
-    setStatus('');
-
-    try {
-      const payload = new FormData();
-      payload.append('file', file);
-      const result = await apiRequest('/api/exams/upload-zip', { method: 'POST', body: payload });
-      setStudents((result.students || []).map((student) => ({ id: student.student_id, name: student.student_name, email: `${student.student_id}@eastdelta.edu.bd`, department: student.course_code || 'General', year: student.semester })));
-      setStatus(`Imported ${result.imported || 0} students from ${file.name}.`);
-    } catch (error) {
-      alert(error.message || 'Unable to import the student file.');
-      setStatus('');
-    } finally {
-      setUploading(false);
-      event.target.value = '';
-    }
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -93,13 +71,7 @@ export default function Students() {
           <p className="text-slate-500 mt-1">Import students from the ZIP file or add them manually.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => fileInputRef.current?.click()} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm shadow-emerald-600/20 flex items-center space-x-2">
-            <Upload size={18} />
-            <span>{uploading ? 'Importing...' : 'Import File / ZIP'}</span>
-          </button>
-          <input ref={fileInputRef} type="file" accept=".zip,.xlsx" className="hidden" onChange={handleImportZip} />
-          <button type="button" onClick={() => folderInputRef.current?.click()} className="bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2">Import Folder</button>
-          <input ref={folderInputRef} type="file" webkitdirectory="" directory="" multiple className="hidden" onChange={handleImportZip} />
+          <button type="button" onClick={() => window.print()} disabled={!students.length} className="bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 disabled:opacity-50"><Printer size={18} /> Print List</button>
           <button type="button" onClick={() => setShowForm((prev) => !prev)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-sm shadow-blue-600/20 flex items-center space-x-2">
             <Plus size={18} />
             <span>{showForm ? 'Close' : 'Add Student'}</span>
@@ -185,6 +157,21 @@ export default function Students() {
             </table>
           </div>
         )}
+      </div>
+      <div className="student-list-print">
+        <h1>STUDENT LIST</h1>
+        <p>ExamEase student list</p>
+        {Object.entries(filtered.reduce((groups, student) => {
+          const key = student.department || 'UNASSIGNED';
+          groups[key] = groups[key] || [];
+          groups[key].push(student);
+          return groups;
+        }, {})).map(([course, courseStudents]) => (
+          <section key={course}>
+            <h2>{course} ({courseStudents.length})</h2>
+            <table><thead><tr><th>Student ID</th><th>Name</th></tr></thead><tbody>{courseStudents.map((student) => <tr key={student.id}><td>{student.id}</td><td>{student.name}</td></tr>)}</tbody></table>
+          </section>
+        ))}
       </div>
     </div>
   );

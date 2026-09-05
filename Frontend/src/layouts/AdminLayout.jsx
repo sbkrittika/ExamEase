@@ -18,6 +18,7 @@ import {
   Menu,
   X
 } from 'lucide-react';
+import DataImport from '../components/DataImport';
 
 
 export default function AdminLayout() {
@@ -315,6 +316,7 @@ export default function AdminLayout() {
           {/* Right Side */}
 
           <div className="flex items-center space-x-4">
+            <DataImport />
 
             <div className="hidden sm:flex items-center space-x-2 text-sm">
 

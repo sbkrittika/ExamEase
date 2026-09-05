@@ -279,7 +279,7 @@ function parseXlsxBuffer(buffer) {
       .map((name) => row[name])
       .find((item) => item !== undefined) || '';
 
-  return rows
+  const tabularStudents = rows
     .map((row) => ({
       student_id: String(
         value(row, [
@@ -325,49 +325,140 @@ function parseXlsxBuffer(buffer) {
       ).trim()
     }))
     .filter((student) => student.student_id);
+
+  if (tabularStudents.length) return tabularStudents;
+
+  const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+  const headingPattern = /((?:MATH|EEE|PHY)\s*\d{3}(?:\.\d+)?(?:\s*\([^)]+\))?\s*\(\d+\))/i;
+  let currentCourse = '';
+  const groupedStudents = [];
+
+  matrix.forEach((row) => {
+    const rowText = row.map((cell) => String(cell || '').trim()).filter(Boolean).join(' ');
+    const heading = rowText.match(headingPattern);
+    if (heading) {
+      currentCourse = heading[1].replace(/\s+/g, ' ').replace(/\s*\(\d+\)\s*$/, '').trim();
+    }
+
+    (rowText.match(/\b\d{7,10}\b/g) || []).forEach((studentId) => {
+      if (currentCourse) {
+        groupedStudents.push({
+          student_id: studentId,
+          student_name: '',
+          course_code: currentCourse,
+          semester: 1,
+          section: 'A'
+        });
+      }
+    });
+  });
+
+  return groupedStudents;
+}
+
+function decodeXmlText(value) {
+  return String(value || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function parseDocxBuffer(buffer) {
+  const documentXml = new AdmZip(buffer).getEntry('word/document.xml');
+
+  if (!documentXml) {
+    throw new Error('The DOCX file does not contain a document.');
+  }
+
+  const xml = documentXml.getData().toString('utf8');
+  const text = Array.from(xml.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g))
+    .map((match) => decodeXmlText(match[1]))
+    .filter(Boolean)
+    .join(' ');
+  const headingPattern = /((?:MATH|EEE|PHY)\s*\d{3}(?:\.\d+)?(?:\s*\([^)]+\))?\s*\(\d+\))/gi;
+  const headings = Array.from(text.matchAll(headingPattern));
+  const students = [];
+
+  headings.forEach((heading, index) => {
+    const rawCourse = heading[1].replace(/\s+/g, ' ').trim();
+    const courseCode = rawCourse.replace(/\s*\(\d+\)\s*$/, '').trim();
+    const bodyEnd = index + 1 < headings.length ? headings[index + 1].index : text.length;
+    const body = text.slice(heading.index + heading[0].length, bodyEnd);
+    const ids = body.match(/\b\d{7,10}\b/g) || [];
+
+    ids.forEach((studentId) => {
+      students.push({
+        student_id: studentId,
+        student_name: '',
+        course_code: courseCode,
+        semester: 1,
+        section: 'A'
+      });
+    });
+  });
+
+  return students;
+}
+
+function parseImportBuffer(buffer, filename) {
+  const extension = String(filename || '').toLowerCase().split('.').pop();
+
+  if (extension === 'docx') return parseDocxBuffer(buffer);
+  if (extension === 'csv' || extension === 'xlsx' || extension === 'xls') {
+    return parseXlsxBuffer(buffer);
+  }
+
+  throw new Error(`Unsupported import file: ${filename}`);
 }
 
 const uploadZip = async (req, res) => {
-  if (!req.file) {
+  const uploadedFiles = Array.isArray(req.files)
+    ? req.files
+    : req.file
+      ? [req.file]
+      : [];
+
+  if (!uploadedFiles.length) {
     return res.status(400).json({
       success: false,
-      message: 'A ZIP file is required.'
+      message: 'Select an XLSX, CSV, DOCX, or ZIP file to import.'
     });
   }
 
   try {
-    const isXlsx =
-      req.file.originalname
-        .toLowerCase()
-        .endsWith('.xlsx');
+    const students = [];
 
-    const entry = isXlsx
-      ? null
-      : new AdmZip(req.file.buffer)
-          .getEntries()
-          .find((item) =>
-            item.entryName
-              .toLowerCase()
-              .endsWith('.xlsx')
-          );
+    uploadedFiles.forEach((file) => {
+      const extension = file.originalname.toLowerCase().split('.').pop();
 
-    if (!isXlsx && !entry) {
-      return res.status(400).json({
-        success: false,
-        message: 'No .xlsx file was found inside the ZIP.'
-      });
-    }
+      if (extension === 'zip') {
+        new AdmZip(file.buffer).getEntries()
+          .filter((entry) => !entry.isDirectory)
+          .forEach((entry) => {
+            const entryExtension = entry.entryName.toLowerCase().split('.').pop();
+            if (['xlsx', 'xls', 'csv', 'docx'].includes(entryExtension)) {
+              students.push(...parseImportBuffer(entry.getData(), entry.entryName));
+            }
+          });
+      } else {
+        students.push(...parseImportBuffer(file.buffer, file.originalname));
+      }
+    });
 
-    const students = parseXlsxBuffer(
-      isXlsx
-        ? req.file.buffer
-        : entry.getData()
+    const uniqueStudents = Array.from(
+      new Map(students.map((student) => [`${student.student_id}:${student.course_code}`, student])).values()
     );
 
-    if (!students.length) {
+    if (!uniqueStudents.length) {
       return res.status(400).json({
         success: false,
-        message: 'No student rows found in the Excel file.'
+        message: 'No student records were found in the uploaded files.'
       });
     }
 
@@ -377,40 +468,40 @@ const uploadZip = async (req, res) => {
     try {
       await connection.beginTransaction();
 
-      for (const student of students) {
+      for (const student of uniqueStudents) {
         if (student.course_code) {
           await connection.query(
             `INSERT INTO courses
-              (course_code, section, course_title, semester, department)
-             VALUES (?, ?, ?, ?, ?)
+             (course_code, section, course_title, semester, department, credit)
+            VALUES (?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
               semester = VALUES(semester),
-              section = VALUES(section)`,
+              course_title = VALUES(course_title),
+              department = VALUES(department)`,
             [
-              student.course_code,
-              student.section || 'A',
-              student.course_code,
-              student.semester,
-              'General'
+             student.course_code,
+             student.section || 'A',
+             student.course_code,
+             student.semester,
+             student.course_code.split(/\s+/)[0] || 'General',
+             3
             ]
           );
         }
 
         await connection.query(
           `INSERT INTO students
-            (student_id, student_name, semester, course_code, section)
-           VALUES (?, ?, ?, ?, ?)
+            (student_id, student_name, semester, course_code)
+           VALUES (?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE
             student_name = VALUES(student_name),
             semester = VALUES(semester),
-            course_code = VALUES(course_code),
-            section = VALUES(section)`,
+            course_code = VALUES(course_code)`,
           [
             student.student_id,
             student.student_name || 'Unknown Student',
             student.semester,
-            student.course_code || 'UNASSIGNED',
-            student.section || 'A'
+            student.course_code || 'UNASSIGNED'
           ]
         );
       }
@@ -419,8 +510,8 @@ const uploadZip = async (req, res) => {
 
       res.json({
         success: true,
-        imported: students.length,
-        students
+        imported: uniqueStudents.length,
+        students: uniqueStudents
       });
     } catch (err) {
       await connection.rollback();

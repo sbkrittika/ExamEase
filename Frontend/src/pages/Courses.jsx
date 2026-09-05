@@ -12,9 +12,12 @@ export default function Courses() {
   const [form, setForm] = useState({ code: '', title: '', credit: '3', department: 'CSE' });
 
   useEffect(() => {
-    apiRequest('/api/courses').then((data) => setCourses((data.courses || []).map((course) => ({
+    const loadCourses = () => apiRequest('/api/courses').then((data) => setCourses((data.courses || []).map((course) => ({
       code: course.course_code, title: course.course_title, credit: course.credit || 3, department: course.department, section: course.section
     })))).catch((error) => setStatus(error.message));
+    loadCourses();
+    window.addEventListener('examease:data-imported', loadCourses);
+    return () => window.removeEventListener('examease:data-imported', loadCourses);
   }, []);
 
   const filtered = useMemo(() => {

@@ -49,7 +49,7 @@ router.delete(
 router.post(
   '/upload-zip',
   allowRoles('faculty'),
-  upload.single('file'),
+  upload.any(),
   uploadZip
 );
 

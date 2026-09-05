@@ -198,10 +198,59 @@ body {
     }
 }
 
+ .student-list-print {
+    display: none;
+}
+
 @media print {
     body {
         background: white;
     }
+
+    body * {
+        visibility: hidden;
+    }
+
+    .student-list-print,
+    .student-list-print * {
+        visibility: visible;
+    }
+
+    .student-list-print {
+        display: block;
+        color: #000;
+        padding: 12mm;
+    }
+
+    .student-list-print h1,
+    .student-list-print > p {
+        text-align: center;
+        margin: 0 0 4mm;
+    }
+
+    .student-list-print section {
+        page-break-inside: avoid;
+        margin-bottom: 6mm;
+    }
+
+    .student-list-print h2 {
+        font-size: 13px;
+        margin: 0 0 2mm;
+    }
+
+    .student-list-print table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .student-list-print th,
+    .student-list-print td {
+        border: 1px solid #000;
+        padding: 3px 5px;
+        text-align: left;
+        font-size: 10px;
+    }
+
     .seat-plan-document {
         max-width: none;
     }

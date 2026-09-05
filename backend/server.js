@@ -54,13 +54,13 @@ const tables = [
         department VARCHAR(150) NOT NULL, phone VARCHAR(30), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB`,
     `CREATE TABLE IF NOT EXISTS courses (
-        course_code VARCHAR(30) NOT NULL, section VARCHAR(10) NOT NULL DEFAULT 'A',
+        course_code VARCHAR(30) NOT NULL, section VARCHAR(10) NOT NULL DEFAULT '1',
         course_title VARCHAR(150) NOT NULL, semester INT NOT NULL, department VARCHAR(100) NOT NULL,
         credit DECIMAL(3,1) NOT NULL DEFAULT 3, PRIMARY KEY (course_code, section)
     ) ENGINE=InnoDB`,
     `CREATE TABLE IF NOT EXISTS students (
         student_id VARCHAR(30) PRIMARY KEY, student_name VARCHAR(150) NOT NULL,
-        semester INT NOT NULL, course_code VARCHAR(30) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        semester INT NOT NULL, section VARCHAR(20) NOT NULL DEFAULT '1', course_code VARCHAR(30) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         KEY course_code_idx (course_code)
     ) ENGINE=InnoDB`,
     `CREATE TABLE IF NOT EXISTS rooms (
@@ -77,6 +77,10 @@ const tables = [
         course_code VARCHAR(30) NOT NULL, total_students INT NOT NULL DEFAULT 0,
         UNIQUE KEY exam_course_unique (exam_id, course_code)
     ) ENGINE=InnoDB`,
+    `CREATE TABLE IF NOT EXISTS exam_sections (
+        exam_id INT NOT NULL, semester INT NOT NULL, section VARCHAR(20) NOT NULL,
+        PRIMARY KEY (exam_id, semester, section)
+    ) ENGINE=InnoDB`,
     `CREATE TABLE IF NOT EXISTS seat_allocations (
         allocation_id INT AUTO_INCREMENT PRIMARY KEY, exam_id INT NOT NULL, student_id VARCHAR(30) NOT NULL,
         course_code VARCHAR(30) NOT NULL, room_id INT NOT NULL, row_no INT, column_no INT, seat_no INT,
@@ -92,6 +96,9 @@ const migrations = [
     "ALTER TABLE users ADD COLUMN role ENUM('student','faculty') NOT NULL DEFAULT 'faculty'",
     "ALTER TABLE courses ADD COLUMN credit DECIMAL(3,1) NOT NULL DEFAULT 3",
     "ALTER TABLE students ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+    ,"ALTER TABLE students ADD COLUMN section VARCHAR(20) NOT NULL DEFAULT '1'"
+    ,"UPDATE courses SET section = '1' WHERE section = 'A'"
+    ,"UPDATE students SET section = '1' WHERE section = 'A'"
 ];
 
 app.use("/api/auth", authRoutes);

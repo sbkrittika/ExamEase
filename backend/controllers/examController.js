@@ -12,20 +12,31 @@ const fail = (res, message, err) => {
   });
 };
 
+function parseExamTime(timeRange) {
+  const match = String(timeRange || '').match(/(\d{1,2}(?::|\.)\d{2})\s*(?:AM|PM)?\s*[-–]\s*(\d{1,2}(?::|\.)\d{2})\s*(?:AM|PM)?/i);
+  return match ? { start: match[1].replace('.', ':'), end: match[2].replace('.', ':') } : null;
+}
+
 const addExam = async (req, res) => {
   const {
     exam_date,
     start_time,
     end_time,
+    time_range,
     exam_type,
     course_code,
     total_students
   } = req.body || {};
 
+  const parsedTime = time_range ? parseExamTime(time_range) : null;
+  const examStart = parsedTime?.start || start_time;
+  const examEnd = parsedTime?.end || end_time;
+  const sections = Array.isArray(req.body.sections) ? req.body.sections : [];
+
   if (
     !exam_date ||
-    !start_time ||
-    !end_time ||
+    !examStart ||
+    !examEnd ||
     !course_code ||
     !Number.isInteger(Number(total_students)) ||
     Number(total_students) < 0
@@ -62,8 +73,8 @@ const addExam = async (req, res) => {
         VALUES (?, ?, ?, ?, ?)`,
         [
           exam_date,
-          start_time,
-          end_time,
+          examStart,
+          examEnd,
           exam_type || null,
           req.user.user_id
         ]
@@ -79,6 +90,13 @@ const addExam = async (req, res) => {
           Number(total_students)
         ]
       );
+
+      if (req.body.semester && sections.length) {
+        await connection.query(
+          'INSERT INTO exam_sections (exam_id, semester, section) VALUES ?',
+          [sections.map((section) => [exam.insertId, Number(req.body.semester), String(section).trim()])]
+        );
+      }
 
       await connection.commit();
 
@@ -161,12 +179,16 @@ const updateExam = async (req, res) => {
     exam_date,
     start_time,
     end_time,
+    time_range,
     exam_type,
     course_code,
     total_students
   } = req.body || {};
 
-  if (!exam_date || !start_time || !end_time) {
+  const parsedTime = time_range ? parseExamTime(time_range) : null;
+  const examStart = parsedTime?.start || start_time;
+  const examEnd = parsedTime?.end || end_time;
+  if (!exam_date || !examStart || !examEnd) {
     return res.status(400).json({
       success: false,
       message: 'Exam date and times are required.'
@@ -188,8 +210,8 @@ const updateExam = async (req, res) => {
          WHERE exam_id = ?`,
         [
           exam_date,
-          start_time,
-          end_time,
+          examStart,
+          examEnd,
           exam_type || null,
           req.params.id
         ]
@@ -238,6 +260,16 @@ const updateExam = async (req, res) => {
             ]
           );
         }
+
+        if (Array.isArray(req.body.sections) && req.body.semester) {
+          await connection.query('DELETE FROM exam_sections WHERE exam_id = ?', [req.params.id]);
+          if (req.body.sections.length) {
+            await connection.query(
+              'INSERT INTO exam_sections (exam_id, semester, section) VALUES ?',
+              [req.body.sections.map((section) => [req.params.id, Number(req.body.semester), String(section).trim()])]
+            );
+          }
+        }
       }
 
       await connection.commit();
@@ -274,10 +306,13 @@ function parseXlsxBuffer(buffer) {
     }
   );
 
-  const value = (row, names) =>
-    names
-      .map((name) => row[name])
-      .find((item) => item !== undefined) || '';
+  const normalizeHeader = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const value = (row, names) => {
+    const keys = Object.keys(row);
+    const expected = names.map(normalizeHeader);
+    const key = keys.find((item) => expected.includes(normalizeHeader(item)));
+    return key ? row[key] : '';
+  };
 
   const tabularStudents = rows
     .map((row) => ({
@@ -324,7 +359,7 @@ function parseXlsxBuffer(buffer) {
         ])
       ).trim()
     }))
-    .filter((student) => student.student_id);
+    .filter((student) => student.student_id && /\d/.test(student.student_id));
 
   if (tabularStudents.length) return tabularStudents;
 
@@ -347,7 +382,7 @@ function parseXlsxBuffer(buffer) {
           student_name: '',
           course_code: currentCourse,
           semester: 1,
-          section: 'A'
+          section: '1'
         });
       }
     });
@@ -398,7 +433,7 @@ function parseDocxBuffer(buffer) {
         student_name: '',
         course_code: courseCode,
         semester: 1,
-        section: 'A'
+        section: '1'
       });
     });
   });
@@ -446,14 +481,20 @@ const uploadZip = async (req, res) => {
               students.push(...parseImportBuffer(entry.getData(), entry.entryName));
             }
           });
-      } else {
+      } else if (['xlsx', 'xls', 'csv', 'docx'].includes(extension)) {
         students.push(...parseImportBuffer(file.buffer, file.originalname));
       }
     });
 
-    const uniqueStudents = Array.from(
-      new Map(students.map((student) => [`${student.student_id}:${student.course_code}`, student])).values()
-    );
+    const uniqueStudents = Array.from(students.reduce((map, student) => {
+      const previous = map.get(student.student_id);
+      map.set(student.student_id, {
+        ...(previous || {}),
+        ...student,
+        student_name: student.student_name || previous?.student_name || ''
+      });
+      return map;
+    }, new Map()).values());
 
     if (!uniqueStudents.length) {
       return res.status(400).json({
@@ -468,43 +509,56 @@ const uploadZip = async (req, res) => {
     try {
       await connection.beginTransaction();
 
-      for (const student of uniqueStudents) {
-        if (student.course_code) {
-          await connection.query(
-            `INSERT INTO courses
-             (course_code, section, course_title, semester, department, credit)
-            VALUES (?, ?, ?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE
-              semester = VALUES(semester),
-              course_title = VALUES(course_title),
-              department = VALUES(department)`,
-            [
-             student.course_code,
-             student.section || 'A',
-             student.course_code,
-             student.semester,
-             student.course_code.split(/\s+/)[0] || 'General',
-             3
-            ]
-          );
-        }
+      const courseRows = Array.from(
+        new Map(
+          uniqueStudents
+             .filter((student) => student.course_code)
+             .map((student) => [
+               `${student.course_code}:${student.section || '1'}`,
+               [
+                 student.course_code,
+                 student.section || '1',
+                 student.course_code,
+                 student.semester,
+                 student.course_code.split(/\s+/)[0] || 'General',
+                 3
+               ]
+             ])
+        ).values()
+      );
 
+      if (courseRows.length) {
         await connection.query(
-          `INSERT INTO students
-            (student_id, student_name, semester, course_code)
-           VALUES (?, ?, ?, ?)
+          `INSERT INTO courses
+             (course_code, section, course_title, semester, department, credit)
+           VALUES ?
            ON DUPLICATE KEY UPDATE
-            student_name = VALUES(student_name),
-            semester = VALUES(semester),
-            course_code = VALUES(course_code)`,
-          [
-            student.student_id,
-            student.student_name || 'Unknown Student',
-            student.semester,
-            student.course_code || 'UNASSIGNED'
-          ]
+             semester = VALUES(semester),
+             course_title = VALUES(course_title),
+             department = VALUES(department)`,
+          [courseRows]
         );
       }
+
+      const studentRows = uniqueStudents.map((student) => [
+        student.student_id,
+        student.student_name || 'Unknown Student',
+        student.semester,
+        student.section || '1',
+        student.course_code || 'UNASSIGNED'
+      ]);
+
+      await connection.query(
+        `INSERT INTO students
+          (student_id, student_name, semester, section, course_code)
+         VALUES ?
+         ON DUPLICATE KEY UPDATE
+          student_name = VALUES(student_name),
+          semester = VALUES(semester),
+          section = VALUES(section),
+          course_code = VALUES(course_code)`,
+        [studentRows]
+      );
 
       await connection.commit();
 
@@ -607,6 +661,14 @@ const allocate = async (req, res) => {
         (row) => row.course_code
       );
 
+    const [examSections] = await db.promise().query(
+      'SELECT semester, section FROM exam_sections WHERE exam_id = ?',
+      [exam_id]
+    );
+    const hasSectionFilter = examSections.length > 0;
+    const sectionParams = hasSectionFilter
+      ? [examSections.map((item) => Number(item.semester)), examSections.map((item) => item.section)]
+      : [];
     let rows;
 
     if (
@@ -622,10 +684,13 @@ const allocate = async (req, res) => {
           semester
          FROM students
          WHERE student_id IN (?)
-         AND course_code IN (?)`,
+         AND course_code IN (?)
+         ${hasSectionFilter ? 'AND semester IN (?) AND section IN (?)' : ''}
+         ORDER BY section, student_id`,
         [
-          studentIds,
-          courseCodes
+         studentIds,
+         courseCodes,
+         ...sectionParams
         ]
       );
     } else {
@@ -637,8 +702,10 @@ const allocate = async (req, res) => {
           section,
           semester
          FROM students
-         WHERE course_code IN (?)`,
-        [courseCodes]
+         WHERE course_code IN (?)
+         ${hasSectionFilter ? 'AND semester IN (?) AND section IN (?)' : ''}
+         ORDER BY section, student_id`,
+        [courseCodes, ...sectionParams]
       );
     }
 

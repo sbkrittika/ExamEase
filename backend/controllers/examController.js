@@ -274,10 +274,13 @@ function parseXlsxBuffer(buffer) {
     }
   );
 
-  const value = (row, names) =>
-    names
-      .map((name) => row[name])
-      .find((item) => item !== undefined) || '';
+  const normalizeHeader = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const value = (row, names) => {
+    const keys = Object.keys(row);
+    const expected = names.map(normalizeHeader);
+    const key = keys.find((item) => expected.includes(normalizeHeader(item)));
+    return key ? row[key] : '';
+  };
 
   const tabularStudents = rows
     .map((row) => ({
@@ -324,7 +327,7 @@ function parseXlsxBuffer(buffer) {
         ])
       ).trim()
     }))
-    .filter((student) => student.student_id);
+    .filter((student) => student.student_id && /\d/.test(student.student_id));
 
   if (tabularStudents.length) return tabularStudents;
 
@@ -446,14 +449,20 @@ const uploadZip = async (req, res) => {
               students.push(...parseImportBuffer(entry.getData(), entry.entryName));
             }
           });
-      } else {
+      } else if (['xlsx', 'xls', 'csv', 'docx'].includes(extension)) {
         students.push(...parseImportBuffer(file.buffer, file.originalname));
       }
     });
 
-    const uniqueStudents = Array.from(
-      new Map(students.map((student) => [`${student.student_id}:${student.course_code}`, student])).values()
-    );
+    const uniqueStudents = Array.from(students.reduce((map, student) => {
+      const previous = map.get(student.student_id);
+      map.set(student.student_id, {
+        ...(previous || {}),
+        ...student,
+        student_name: student.student_name || previous?.student_name || ''
+      });
+      return map;
+    }, new Map()).values());
 
     if (!uniqueStudents.length) {
       return res.status(400).json({

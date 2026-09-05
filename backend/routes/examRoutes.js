@@ -1,7 +1,12 @@
 const express = require('express');
 const multer = require('multer');
 
-const upload = multer();
+const upload = multer({
+  limits: {
+    fileSize: 25 * 1024 * 1024,
+    files: 100
+  }
+});
 
 const {
   addExam,

@@ -13,7 +13,7 @@ export default function DataImport() {
     if (!files.length) return;
 
     setUploading(true);
-    setStatus('');
+    setStatus(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}...`);
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 120000);
 
@@ -26,7 +26,7 @@ export default function DataImport() {
         signal: controller.signal
       });
       window.dispatchEvent(new CustomEvent('examease:data-imported', { detail: result }));
-      setStatus(`Imported ${result.imported || 0} student records.`);
+      setStatus(`Imported ${result.imported || 0} student records. Names were saved when provided.`);
     } catch (error) {
       setStatus(error.name === 'AbortError'
         ? 'Import timed out. Try a smaller file or ZIP.'

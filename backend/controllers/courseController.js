@@ -9,7 +9,7 @@ const addCourse = async (req, res) => {
         department
     } = req.body;
 
-    if (!course_code || !section || !course_title || !semester || !department) {
+    if (!course_code || !section || !course_title || !Number.isInteger(Number(semester)) || Number(semester) < 1 || Number(semester) > 12 || !department) {
         return res.status(400).json({
             success: false,
             message: "All course fields are required."
@@ -58,7 +58,7 @@ const getCourses = async (req, res) => {
 
 const deleteCourse = async (req, res) => {
     try {
-        await db.promise().query("DELETE FROM courses WHERE course_code = ? AND section = ?", [req.params.code, req.params.section || "A"]);
+        await db.promise().query("DELETE FROM courses WHERE course_code = ? AND section = ?", [req.params.code, req.params.section || "1"]);
         res.json({ success: true, message: "Course deleted successfully." });
     } catch (err) {
         console.error("Delete course error:", err.message);

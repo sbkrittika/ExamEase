@@ -8,12 +8,12 @@ export default function Students() {
   const [showForm, setShowForm] = useState(false);
   const [status, setStatus] = useState('');
   const [semesterFilter, setSemesterFilter] = useState('');
-  const [form, setForm] = useState({ id: '', name: '', email: '', department: 'CSE', semester: '1', section: 'A' });
+  const [form, setForm] = useState({ id: '', name: '', email: '', department: 'CSE', semester: '1', section: '1' });
 
   useEffect(() => {
     const loadStudents = () => apiRequest('/api/students').then((data) => setStudents((data.students || []).map((student) => ({
       id: student.student_id, name: student.student_name, email: `${student.student_id}@eastdelta.edu.bd`,
-      department: student.course_code || 'General', semester: student.semester, section: student.section || 'A'
+      department: student.course_code || 'General', semester: student.semester, section: student.section || '1'
     })))).catch((error) => setStatus(error.message));
     loadStudents();
     window.addEventListener('examease:data-imported', loadStudents);
@@ -33,7 +33,7 @@ export default function Students() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
   const handleEdit = (student) => {
-    setForm({ id: student.id, name: student.name, email: student.email, department: student.department, semester: String(student.semester || '1'), section: student.section || 'A' });
+    setForm({ id: student.id, name: student.name, email: student.email, department: student.department, semester: String(student.semester || '1'), section: student.section || '1' });
     setShowForm(true);
   };
 
@@ -59,7 +59,7 @@ export default function Students() {
       }) });
       setStudents((prev) => [newStudent, ...prev.filter((item) => item.id !== newStudent.id)]);
     } catch (error) { setStatus(error.message); return; }
-    setForm({ id: '', name: '', email: '', department: 'CSE', semester: '1', section: 'A' });
+    setForm({ id: '', name: '', email: '', department: 'CSE', semester: '1', section: '1' });
     setShowForm(false);
     setStatus('Student added successfully.');
   };
@@ -102,8 +102,8 @@ export default function Students() {
                 <option value="Physics">Physics</option>
               </select>
             </div>
-            <div><label className="block text-sm font-medium text-slate-700 mb-1">Semester</label><select name="semester" value={form.semester} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">{[1,2,3,4,5,6,7,8].map((semester) => <option key={semester} value={semester}>{semester}</option>)}</select></div>
-            <div><label className="block text-sm font-medium text-slate-700 mb-1">Section</label><input name="section" value={form.section} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="A" /></div>
+            <div><label className="block text-sm font-medium text-slate-700 mb-1">Semester</label><select name="semester" value={form.semester} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">{Array.from({ length: 12 }, (_, index) => index + 1).map((semester) => <option key={semester} value={semester}>{semester}</option>)}</select></div>
+            <div><label className="block text-sm font-medium text-slate-700 mb-1">Section</label><select name="section" value={form.section} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">{Array.from({ length: 7 }, (_, index) => index + 1).map((section) => <option key={section} value={section}>{section}</option>)}</select></div>
             <div className="md:col-span-2 lg:col-span-5 flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200">Cancel</button>
               <button type="submit" className="px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">Save Student</button>
@@ -118,7 +118,7 @@ export default function Students() {
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search size={18} className="text-slate-400" /></div>
             <input type="text" placeholder="Search by name, ID or email..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none" />
           </div>
-          <select value={semesterFilter} onChange={(e) => setSemesterFilter(e.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-sm"><option value="">All semesters</option>{[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => <option key={semester} value={semester}>Semester {semester}</option>)}</select>
+          <select value={semesterFilter} onChange={(e) => setSemesterFilter(e.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-sm"><option value="">All semesters</option>{Array.from({ length: 12 }, (_, index) => index + 1).map((semester) => <option key={semester} value={semester}>Semester {semester}</option>)}</select>
         </div>
 
         {students.length === 0 ? (

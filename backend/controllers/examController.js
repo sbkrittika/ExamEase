@@ -13,8 +13,8 @@ const fail = (res, message, err) => {
 };
 
 function parseExamTime(timeRange) {
-  const match = String(timeRange || '').match(/(\d{1,2}:\d{2})\s*(?:AM|PM)?\s*[-–]\s*(\d{1,2}:\d{2})\s*(?:AM|PM)?/i);
-  return match ? { start: match[1], end: match[2] } : null;
+  const match = String(timeRange || '').match(/(\d{1,2}(?::|\.)\d{2})\s*(?:AM|PM)?\s*[-–]\s*(\d{1,2}(?::|\.)\d{2})\s*(?:AM|PM)?/i);
+  return match ? { start: match[1].replace('.', ':'), end: match[2].replace('.', ':') } : null;
 }
 
 const addExam = async (req, res) => {
@@ -382,7 +382,7 @@ function parseXlsxBuffer(buffer) {
           student_name: '',
           course_code: currentCourse,
           semester: 1,
-          section: 'A'
+          section: '1'
         });
       }
     });
@@ -433,7 +433,7 @@ function parseDocxBuffer(buffer) {
         student_name: '',
         course_code: courseCode,
         semester: 1,
-        section: 'A'
+        section: '1'
       });
     });
   });
@@ -514,10 +514,10 @@ const uploadZip = async (req, res) => {
           uniqueStudents
              .filter((student) => student.course_code)
              .map((student) => [
-               `${student.course_code}:${student.section || 'A'}`,
+               `${student.course_code}:${student.section || '1'}`,
                [
                  student.course_code,
-                 student.section || 'A',
+                 student.section || '1',
                  student.course_code,
                  student.semester,
                  student.course_code.split(/\s+/)[0] || 'General',
@@ -544,7 +544,7 @@ const uploadZip = async (req, res) => {
         student.student_id,
         student.student_name || 'Unknown Student',
         student.semester,
-        student.section || 'A',
+        student.section || '1',
         student.course_code || 'UNASSIGNED'
       ]);
 

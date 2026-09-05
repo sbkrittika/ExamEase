@@ -9,11 +9,11 @@ export default function Courses() {
   const [showForm, setShowForm] = useState(false);
   const [status, setStatus] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [form, setForm] = useState({ code: '', title: '', credit: '3', department: 'CSE' });
+  const [form, setForm] = useState({ code: '', title: '', credit: '3', department: 'CSE', semester: '1', section: '1' });
 
   useEffect(() => {
     const loadCourses = () => apiRequest('/api/courses').then((data) => setCourses((data.courses || []).map((course) => ({
-      code: course.course_code, title: course.course_title, credit: course.credit || 3, department: course.department, section: course.section
+      code: course.course_code, title: course.course_title, credit: course.credit || 3, department: course.department, semester: course.semester, section: course.section
     })))).catch((error) => setStatus(error.message));
     loadCourses();
     window.addEventListener('examease:data-imported', loadCourses);
@@ -30,7 +30,7 @@ export default function Courses() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
   const handleEdit = (course) => {
-    setForm({ code: course.code, title: course.title, credit: String(course.credit || 3), department: course.department });
+    setForm({ code: course.code, title: course.title, credit: String(course.credit || 3), department: course.department, semester: String(course.semester || 1), section: String(course.section || 1) });
     setShowForm(true);
   };
 
@@ -46,11 +46,13 @@ export default function Courses() {
       title: form.title.trim(),
       credit: Number(form.credit) || 3,
       department: form.department,
+      semester: Number(form.semester),
+      section: form.section,
     };
 
     try {
       await apiRequest('/api/courses', { method: 'POST', body: JSON.stringify({
-        course_code: newCourse.code, section: 'A', course_title: newCourse.title, semester: 1, department: newCourse.department
+        course_code: newCourse.code, section: newCourse.section, course_title: newCourse.title, semester: newCourse.semester, department: newCourse.department
       }) });
     } catch (error) { setStatus(error.message); return; }
     setCourses((prev) => {
@@ -63,7 +65,7 @@ export default function Courses() {
       return [newCourse, ...prev];
     });
 
-    setForm({ code: '', title: '', credit: '3', department: 'CSE' });
+    setForm({ code: '', title: '', credit: '3', department: 'CSE', semester: '1', section: '1' });
     setShowForm(false);
     setStatus('Course added successfully.');
   };
@@ -116,6 +118,8 @@ export default function Courses() {
             <div><label className="block text-sm font-medium text-slate-700 mb-1">Course Title</label><input name="title" value={form.title} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Database Systems" /></div>
             <div><label className="block text-sm font-medium text-slate-700 mb-1">Credit</label><select name="credit" value={form.credit} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div>
             <div><label className="block text-sm font-medium text-slate-700 mb-1">Department</label><select name="department" value={form.department} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"><option value="CSE">CSE</option><option value="EEE">EEE</option><option value="BBA">BBA</option><option value="Physics">Physics</option><option value="Mathematics">Mathematics</option></select></div>
+            <div><label className="block text-sm font-medium text-slate-700 mb-1">Semester</label><select name="semester" value={form.semester} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">{Array.from({ length: 12 }, (_, index) => index + 1).map((semester) => <option key={semester} value={semester}>{semester}</option>)}</select></div>
+            <div><label className="block text-sm font-medium text-slate-700 mb-1">Section</label><select name="section" value={form.section} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">{Array.from({ length: 7 }, (_, index) => index + 1).map((section) => <option key={section} value={section}>{section}</option>)}</select></div>
             <div className="md:col-span-2 lg:col-span-4 flex justify-end gap-3 pt-2"><button type="button" onClick={() => setShowForm(false)} className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200">Cancel</button><button type="submit" className="px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">Save Course</button></div>
           </form>
         </div>
@@ -131,10 +135,10 @@ export default function Courses() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
-              <thead><tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-semibold"><th className="px-6 py-4">Course Code</th><th className="px-6 py-4">Course Title</th><th className="px-6 py-4">Credit</th><th className="px-6 py-4">Department</th><th className="px-6 py-4 text-right">Actions</th></tr></thead>
+              <thead><tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-semibold"><th className="px-6 py-4">Course Code</th><th className="px-6 py-4">Course Title</th><th className="px-6 py-4">Semester</th><th className="px-6 py-4">Section</th><th className="px-6 py-4">Credit</th><th className="px-6 py-4">Department</th><th className="px-6 py-4 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((course) => (
-                  <tr key={course.code} className="hover:bg-slate-50 transition-colors group"><td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900">{course.code}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{course.title}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{course.credit}.0</td><td className="px-6 py-4 whitespace-nowrap"><span className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">{course.department}</span></td><td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><div className="flex items-center justify-end space-x-2"><button type="button" onClick={() => handleEdit(course)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button><button type="button" onClick={async () => { try { await apiRequest(`/api/courses/${encodeURIComponent(course.code)}/A`, { method: 'DELETE' }); setCourses((prev) => prev.filter((item) => item.code !== course.code)); } catch (error) { setStatus(error.message); } }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button></div></td></tr>
+                  <tr key={`${course.code}-${course.section}`} className="hover:bg-slate-50 transition-colors group"><td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900">{course.code}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{course.title}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{course.semester}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{course.section}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{course.credit}.0</td><td className="px-6 py-4 whitespace-nowrap"><span className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">{course.department}</span></td><td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><div className="flex items-center justify-end space-x-2"><button type="button" onClick={() => handleEdit(course)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button><button type="button" onClick={async () => { try { await apiRequest(`/api/courses/${encodeURIComponent(course.code)}/${encodeURIComponent(course.section)}`, { method: 'DELETE' }); setCourses((prev) => prev.filter((item) => !(item.code === course.code && item.section === course.section))); } catch (error) { setStatus(error.message); } }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button></div></td></tr>
                 ))}
               </tbody>
             </table>

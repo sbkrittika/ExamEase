@@ -111,7 +111,7 @@ export default function Exams() {
   const [form, setForm] = useState({
     course: '',
     date: '',
-    timeRange: '10:00-11:30',
+    timeRange: '',
     semester: '',
     sections: [],
     examType: 'Midterm',
@@ -276,7 +276,7 @@ export default function Exams() {
     setForm({
       course: '',
       date: '',
-      timeRange: '10:00-11:30',
+      timeRange: '',
       semester: '',
       sections: [],
       examType: 'Midterm',
@@ -537,7 +537,7 @@ export default function Exams() {
   const eligibleStudents = students.filter((student) =>
     (!form.course || String(student.course_code || '').trim() === getCourseCode(form.course))
     && (!form.semester || String(student.semester) === String(form.semester))
-    && (!form.sections.length || form.sections.includes(String(student.section || 'A')))
+    && (!form.sections.length || form.sections.includes(String(student.section || '1')))
   );
 
   return (
@@ -698,24 +698,20 @@ export default function Exams() {
                 Time *
               </label>
 
-              <select name="timeRange" value={form.timeRange} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                <option value="10:00-11:30">10:00 AM - 11:30 AM</option>
-                <option value="14:00-15:30">2:00 PM - 3:30 PM</option>
-                <option value="18:00-19:30">6:00 PM - 7:30 PM</option>
-              </select>
+              <input type="text" name="timeRange" value={form.timeRange} onChange={handleChange} placeholder="10.30-11.30" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Semester *</label>
               <select name="semester" value={form.semester} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
                 <option value="">Select semester...</option>
-                {[1,2,3,4,5,6,7,8].map((semester) => <option key={semester} value={semester}>Semester {semester}</option>)}
+                {Array.from({ length: 12 }, (_, index) => index + 1).map((semester) => <option key={semester} value={semester}>Semester {semester}</option>)}
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Sections *</label>
-              <div className="flex flex-wrap gap-2 pt-2">{['A','B','C','D','E','F'].map((section) => <label key={section} className="flex items-center gap-1 text-sm"><input type="checkbox" checked={form.sections.includes(section)} onChange={() => setForm((previous) => ({ ...previous, sections: previous.sections.includes(section) ? previous.sections.filter((item) => item !== section) : [...previous.sections, section] }))} />{section}</label>)}</div>
+              <div className="flex flex-wrap gap-2 pt-2">{Array.from({ length: 7 }, (_, index) => String(index + 1)).map((section) => <label key={section} className="flex items-center gap-1 text-sm"><input type="checkbox" checked={form.sections.includes(section)} onChange={() => setForm((previous) => ({ ...previous, sections: previous.sections.includes(section) ? previous.sections.filter((item) => item !== section) : [...previous.sections, section] }))} />{section}</label>)}</div>
             </div>
 
             <div className="md:col-span-2 lg:col-span-4">
@@ -724,7 +720,7 @@ export default function Exams() {
               <textarea
                 name="studentList"
                 rows="5"
-                value={eligibleStudents.map((student) => `${student.student_id} - ${student.student_name || 'Unknown'} (${student.section || 'A'})`).join('\n')}
+                value={eligibleStudents.map((student) => `${student.student_id} - ${student.student_name || 'Unknown'} (${student.section || '1'})`).join('\n')}
                 readOnly
                 className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 placeholder="Select a semester and section to load students."

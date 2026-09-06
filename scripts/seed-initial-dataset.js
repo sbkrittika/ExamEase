@@ -14,6 +14,7 @@ async function seedInitialDataset() {
     try {
         await connection.beginTransaction();
         await connection.query('DELETE FROM seat_allocations');
+        await connection.query('DELETE FROM invigilator_assignments');
         await connection.query('DELETE FROM exam_sections');
         await connection.query('DELETE FROM exam_courses');
         await connection.query('DELETE FROM exams');

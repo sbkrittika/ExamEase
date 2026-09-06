@@ -2,8 +2,8 @@ const express = require("express");
 const {
     listStudents, listStudentCourses, enrollStudent, removeEnrollment, listCourseStudents,
     saveStudent, updateStudent, deleteStudent, listFaculty,
-    listRooms, saveRoom, deleteRoom, dashboard, mySchedule, saveFaculty,
-    listAssignments, assignInvigilator, removeAssignment
+    listRooms, saveRoom, deleteRoom, dashboard, mySchedule, saveFaculty, updateFaculty, deleteFaculty,
+    listAssignments, assignInvigilator, removeAssignment, updateAssignment
 } = require("../controllers/resourceController");
 const { authenticate, allowRoles } = require("../middleware/auth");
 
@@ -21,10 +21,13 @@ router.delete("/students/:id/courses/:courseCode/:section", allowRoles("faculty"
 router.get("/courses/:code/:section/students", allowRoles("faculty"), listCourseStudents);
 router.get("/faculty", allowRoles("faculty"), listFaculty);
 router.post("/faculty", allowRoles("faculty"), saveFaculty);
+router.put("/faculty/:id", allowRoles("faculty"), updateFaculty);
+router.delete("/faculty/:id", allowRoles("faculty"), deleteFaculty);
 router.get("/rooms", allowRoles("faculty"), listRooms);
 router.post("/rooms", allowRoles("faculty"), saveRoom);
 router.delete("/rooms/:id", allowRoles("faculty"), deleteRoom);
 router.get("/invigilation", allowRoles("faculty"), listAssignments);
 router.post("/invigilation", allowRoles("faculty"), assignInvigilator);
+router.put("/invigilation/:id", allowRoles("faculty"), updateAssignment);
 router.delete("/invigilation/:id", allowRoles("faculty"), removeAssignment);
 module.exports = router;

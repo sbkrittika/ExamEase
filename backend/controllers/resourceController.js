@@ -235,6 +235,50 @@ const saveFaculty = async (req, res) => {
     }
 };
 
+const updateFaculty = async (req, res) => {
+    const { full_name, email, password, department, designation, phone } = req.body || {};
+    if (!full_name || !email || !department) {
+        return res.status(400).json({ success: false, message: "Name, email and department are required." });
+    }
+    try {
+        const fields = [String(full_name).trim(), String(email).trim().toLowerCase(), String(department).trim(),
+            designation ? String(designation).trim() : null, phone ? String(phone).trim() : null];
+        let query = "UPDATE users SET full_name=?, email=?, department=?, designation=?, phone=?";
+        if (password) {
+            if (String(password).length < 6) return res.status(400).json({ success: false, message: "Password must be at least 6 characters." });
+            query += ", password=?";
+            fields.push(await bcrypt.hash(String(password), 10));
+        }
+        query += " WHERE user_id=? AND role='faculty'";
+        fields.push(req.params.id);
+        const [result] = await db.promise().query(query, fields);
+        if (!result.affectedRows) return res.status(404).json({ success: false, message: "Faculty member not found." });
+        res.json({ success: true, message: "Faculty updated successfully." });
+    } catch (err) {
+        if (err.code === "ER_DUP_ENTRY") return res.status(409).json({ success: false, message: "Faculty email already exists." });
+        asError(res, "Failed to update faculty.", err);
+    }
+};
+
+const deleteFaculty = async (req, res) => {
+    try {
+        const connection = await db.promise().getConnection();
+        await connection.beginTransaction();
+        await connection.query("DELETE FROM invigilator_assignments WHERE faculty_id=?", [req.params.id]);
+        const [result] = await connection.query("DELETE FROM users WHERE user_id=? AND role='faculty'", [req.params.id]);
+        if (!result.affectedRows) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ success: false, message: "Faculty member not found." });
+        }
+        await connection.commit();
+        connection.release();
+        res.json({ success: true, message: "Faculty deleted successfully." });
+    } catch (err) {
+        asError(res, "Failed to delete faculty.", err);
+    }
+};
+
 const listRooms = async (req, res) => {
     try {
         const [rows] = await db.promise().query(
@@ -514,6 +558,32 @@ const removeAssignment = async (req, res) => {
     }
 };
 
+const updateAssignment = async (req, res) => {
+    const { exam_id, room_id, faculty_id } = req.body || {};
+    if (!exam_id || !room_id || !faculty_id) return res.status(400).json({ success: false, message: "Exam, room and faculty are required." });
+    try {
+        const [conflicts] = await db.promise().query(
+            `SELECT ia.assignment_id FROM invigilator_assignments ia
+             JOIN exams existing_exam ON existing_exam.exam_id=ia.exam_id
+             JOIN exams selected_exam ON selected_exam.exam_id=?
+             WHERE ia.faculty_id=? AND ia.assignment_id<>?
+             AND existing_exam.exam_date=selected_exam.exam_date
+             AND existing_exam.start_time<selected_exam.end_time
+             AND existing_exam.end_time>selected_exam.start_time LIMIT 1`,
+            [exam_id, faculty_id, req.params.id]
+        );
+        if (conflicts.length) return res.status(409).json({ success: false, message: "This invigilator is already assigned during the selected exam time." });
+        const [result] = await db.promise().query(
+            "UPDATE invigilator_assignments SET exam_id=?, room_id=?, faculty_id=? WHERE assignment_id=?",
+            [exam_id, room_id, faculty_id, req.params.id]
+        );
+        if (!result.affectedRows) return res.status(404).json({ success: false, message: "Assignment not found." });
+        res.json({ success: true, message: "Invigilator assignment updated successfully." });
+    } catch (err) {
+        asError(res, "Failed to update assignment.", err);
+    }
+};
+
 module.exports = {
     listStudents,
     listStudentCourses,
@@ -524,6 +594,8 @@ module.exports = {
     updateStudent,
     deleteStudent,
     listFaculty,
+    updateFaculty,
+    deleteFaculty,
     listRooms,
     saveRoom,
     deleteRoom,
@@ -531,6 +603,7 @@ module.exports = {
     mySchedule,
     listAssignments,
     assignInvigilator,
-    removeAssignment,
+    removeAssignment
+    ,updateAssignment,
     saveFaculty
 };

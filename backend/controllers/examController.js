@@ -33,6 +33,12 @@ const addExam = async (req, res) => {
   const examStart = parsedTime?.start || start_time;
   const examEnd = parsedTime?.end || end_time;
   const sections = Array.isArray(req.body.sections) ? req.body.sections : [];
+  if (examStart && examEnd && examStart >= examEnd) {
+    return res.status(400).json({
+      success: false,
+      message: 'Exam end time must be after the start time.'
+    });
+  }
 
   if (
     !exam_date ||
@@ -75,6 +81,30 @@ const addExam = async (req, res) => {
          WHERE course_code = ?`,
         [course_code]
       );
+
+      const [studentConflicts] = await connection.query(
+        `SELECT COUNT(DISTINCT current_enrollment.student_id) AS conflict_count
+         FROM student_course_enrollments current_enrollment
+         JOIN student_course_enrollments other_enrollment
+           ON other_enrollment.student_id = current_enrollment.student_id
+         JOIN exam_courses other_course
+           ON other_course.course_code = other_enrollment.course_code
+         JOIN exams other_exam
+           ON other_exam.exam_id = other_course.exam_id
+         WHERE current_enrollment.course_code = ?
+           AND other_exam.exam_date = ?
+           AND other_exam.start_time < ?
+           AND other_exam.end_time > ?`,
+        [course_code, exam_date, examEnd, examStart]
+      );
+
+      if (Number(studentConflicts[0].conflict_count) > 0) {
+        await connection.rollback();
+        return res.status(409).json({
+          success: false,
+          message: `Student exam conflict: ${studentConflicts[0].conflict_count} enrolled student(s) already have an overlapping exam.`
+        });
+      }
 
       const [exam] = await connection.query(
         `INSERT INTO exams
@@ -170,18 +200,28 @@ const getExams = async (req, res) => {
 
 const deleteExam = async (req, res) => {
   try {
-    const [result] = await db.promise().query(
+    const connection = await db.promise().getConnection();
+    await connection.beginTransaction();
+    await connection.query('DELETE FROM seat_allocations WHERE exam_id = ?', [req.params.id]);
+    await connection.query('DELETE FROM invigilator_assignments WHERE exam_id = ?', [req.params.id]);
+    await connection.query('DELETE FROM exam_sections WHERE exam_id = ?', [req.params.id]);
+    await connection.query('DELETE FROM exam_courses WHERE exam_id = ?', [req.params.id]);
+    const [result] = await connection.query(
       'DELETE FROM exams WHERE exam_id = ?',
       [req.params.id]
     );
 
     if (!result.affectedRows) {
+      await connection.rollback();
+      connection.release();
       return res.status(404).json({
         success: false,
         message: 'Exam not found.'
       });
     }
 
+    await connection.commit();
+    connection.release();
     res.json({
       success: true,
       message: 'Exam deleted successfully.'
@@ -205,6 +245,12 @@ const updateExam = async (req, res) => {
   const parsedTime = time_range ? parseExamTime(time_range) : null;
   const examStart = parsedTime?.start || start_time;
   const examEnd = parsedTime?.end || end_time;
+  if (examStart && examEnd && examStart >= examEnd) {
+    return res.status(400).json({
+      success: false,
+      message: 'Exam end time must be after the start time.'
+    });
+  }
   if (!exam_date || !examStart || !examEnd) {
     return res.status(400).json({
       success: false,

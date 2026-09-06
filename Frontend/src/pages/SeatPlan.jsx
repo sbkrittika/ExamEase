@@ -87,29 +87,29 @@ function getTimeText(exam) {
     exam.exam_end_time ||
     '';
 
+  const formatTime = (value) => {
+    const match = String(value).match(/^(\d{1,2}):(\d{2})/);
+    if (!match) return String(value);
+    const hours = Number(match[1]);
+    const suffix = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    return `${displayHours}:${match[2]} ${suffix}`;
+  };
+
   if (start && end) {
-    return `${start}-${end}`;
+    return `${formatTime(start)} - ${formatTime(end)}`;
   }
 
-  return start || '';
+  return start ? formatTime(start) : '';
 }
 
 function getExamTitle(exam) {
   if (!exam) return 'Seat Plan';
 
-  if (exam.exam_type) {
-    return exam.exam_type;
-  }
-
-  if (exam.title) {
-    return exam.title;
-  }
-
-  if (exam.exam_name) {
-    return exam.exam_name;
-  }
-
-  return 'Exam';
+  const course = exam.course_title
+    ? `${exam.course_title} ${exam.course_code}`
+    : exam.course_code;
+  return course || exam.exam_type || exam.title || exam.exam_name || 'Exam';
 }
 
 function getColumnCount(room) {
@@ -596,10 +596,10 @@ export default function SeatPlan() {
                 key={exam.exam_id}
                 value={exam.exam_id}
               >
-                {exam.course_code ||
-                  'Exam'}{' '}
-                ·{' '}
-                {exam.exam_date}
+                {exam.course_title
+                  ? `${exam.course_title} ${exam.course_code}`
+                  : exam.course_code || 'Exam'}{' '}
+                · {getDateText(exam)} · {getTimeText(exam)}
               </option>
             ))}
           </select>

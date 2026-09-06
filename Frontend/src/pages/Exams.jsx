@@ -85,6 +85,11 @@ function getCourseCode(course) {
     .trim();
 }
 
+function getCourseLabel(course) {
+  if (!course) return '';
+  return `${course.course_title || course.course_code} ${course.course_code}`;
+}
+
 function getCourseSection(course) {
   if (!course) return '';
 
@@ -144,12 +149,14 @@ export default function Exams() {
       ).map((exam) => ({
         id: exam.exam_id,
         course: exam.course_code || '',
+        courseTitle: exam.course_title || '',
         department: exam.department || 'CSE',
         date: exam.exam_date
           ? String(exam.exam_date).slice(0, 10)
           : '',
         timeRange: `${String(exam.start_time || '').slice(0, 5)}-${String(exam.end_time || '').slice(0, 5)}`,
         time: exam.start_time ? String(exam.start_time).slice(0, 5) : '',
+        endTime: exam.end_time ? String(exam.end_time).slice(0, 5) : '',
 
         examType:
           exam.exam_type === 'Final'
@@ -424,13 +431,25 @@ export default function Exams() {
         );
       }
 
+      const matchingCourse = courses.find(
+        (course) => course.course_code === exam.course
+      );
+      const selectedCourse = matchingCourse
+        ? `${matchingCourse.course_code}: ${matchingCourse.course_title}`
+        : exam.course || '';
+      const sectionEntries = String(exam.sections || '')
+        .split(',')
+        .map((value) => value.split(':'))
+        .filter((value) => value.length === 2);
+      const sectionValues = sectionEntries.map((value) => value[1]);
+
       setForm({
-        course: exam.course || '',
+        course: selectedCourse,
         department: exam.department || 'CSE',
         date: exam.date || '',
-        timeRange: `${exam.time || ''}-${exam.endTime || ''}`,
-        semester: '',
-        sections: [],
+        timeRange: exam.timeRange || `${exam.time || ''}-${exam.endTime || ''}`,
+        semester: sectionEntries.length ? String(sectionEntries[0][0]) : '',
+        sections: sectionValues,
 
         examType:
           exam.examType === 'Final'
@@ -650,8 +669,7 @@ export default function Exams() {
                     key={`${course.course_code}-${course.section}`}
                     value={`${course.course_code}: ${course.course_title}`}
                   >
-                    {course.course_title}
-                    {course.section ? ` (Section ${course.section})` : ''}
+                    {getCourseLabel(course)}
                   </option>
                 ))}
               </select>
@@ -825,7 +843,9 @@ export default function Exams() {
               >
                 <div>
                   <h3 className="font-semibold text-slate-900 mb-2">
-                    {exam.course}
+                    {exam.courseTitle
+                      ? `${exam.courseTitle} ${exam.course}`
+                      : exam.course}
                   </h3>
 
                   <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">

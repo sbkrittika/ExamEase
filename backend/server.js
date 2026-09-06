@@ -7,6 +7,7 @@ const authRoutes = require("./routes/authRoutes");
 const courseRoutes = require("./routes/courseRoutes");
 const examRoutes = require("./routes/examRoutes");
 const resourceRoutes = require("./routes/resourceRoutes");
+const seedInitialDataset = require("../scripts/seed-initial-dataset");
 
 const app = express();
 const configuredOrigins = (process.env.CORS_ORIGINS || "").split(",").map((origin) => origin.trim()).filter(Boolean);
@@ -134,6 +135,10 @@ async function start() {
             // MySQL reports duplicate-column when an existing deployment is already up to date.
             if (error.code !== "ER_DUP_FIELDNAME") throw error;
         }
+    }
+    if (process.env.SEED_INITIAL_DATA === "true") {
+        await seedInitialDataset();
+        console.log("Initial dataset seeded. Remove SEED_INITIAL_DATA before the next restart.");
     }
     const port = Number(process.env.PORT || 5000);
     app.listen(port, "0.0.0.0", () => console.log(`ExamEase server running on port ${port}`));

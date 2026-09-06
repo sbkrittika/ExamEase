@@ -1001,7 +1001,17 @@ const getAllocations = async (req, res) => {
           a.*,
           r.room_number,
           r.building,
-          s.student_name
+          s.student_name,
+          s.department,
+          s.semester,
+          s.section,
+          (
+            SELECT course_title
+            FROM courses
+            WHERE course_code = a.course_code
+            ORDER BY section
+            LIMIT 1
+          ) AS course_title
          FROM seat_allocations a
          LEFT JOIN rooms r
            ON r.room_id = a.room_id

@@ -48,21 +48,6 @@ function getCourseLabel(item) {
   return `${course}${section}`;
 }
 
-function getRoomLabel(room) {
-  if (!room) return '';
-
-  const building = room.building
-    ? `${room.building} `
-    : '';
-
-  return `${building}${
-    room.room_number ||
-    room.roomNumber ||
-    room.room_id ||
-    ''
-  }`.trim();
-}
-
 function getDateText(exam) {
   if (!exam) return '';
 
@@ -127,7 +112,7 @@ function getExamTitle(exam) {
   return 'Exam';
 }
 
-function getColumnCount(room, seats) {
+function getColumnCount(room) {
   const possibleValues = [
     room?.columns,
     room?.column_count,
@@ -192,36 +177,35 @@ function buildRoomRows(
   return rows;
 }
 
-function createSummary(allocations) {
-  const courseMap = {};
+function createStudentListRows(allocations, roomGroups) {
+  const rows = new Map();
 
   allocations.forEach((item) => {
-    const label = getCourseLabel(item);
+    const course = getCourseLabel(item);
+    const roomId = String(item.room_id);
 
-    if (!courseMap[label]) {
-      courseMap[label] = {
-        course: label,
-        total: 0,
-        rooms: {}
-      };
+    if (!rows.has(course)) {
+      rows.set(course, {
+        course,
+        rooms: new Map(),
+        total: 0
+      });
     }
 
-    courseMap[label].total += 1;
-
-    const roomId =
-      String(item.room_id);
-
-    if (!courseMap[label].rooms[roomId]) {
-      courseMap[label].rooms[roomId] = 0;
-    }
-
-    courseMap[label].rooms[roomId] += 1;
+    const row = rows.get(course);
+    const roomStudents = row.rooms.get(roomId) || [];
+    roomStudents.push(String(item.student_id));
+    row.rooms.set(roomId, roomStudents);
+    row.total += 1;
   });
 
-  return Object.values(courseMap).sort(
-    (a, b) =>
-      a.course.localeCompare(b.course)
-  );
+  return Array.from(rows.values()).map((row) => ({
+    ...row,
+    rooms: roomGroups.map((room) => ({
+      ...room,
+      students: row.rooms.get(room.id) || []
+    }))
+  }));
 }
 
 export default function SeatPlan() {
@@ -530,12 +514,9 @@ export default function SeatPlan() {
     return Object.values(groups);
   }, [allocations, rooms]);
 
-  const summary = useMemo(
-    () =>
-      createSummary(
-        allocations
-      ),
-    [allocations]
+  const studentListRows = useMemo(
+    () => createStudentListRows(allocations, roomGroups),
+    [allocations, roomGroups]
   );
 
   return (
@@ -810,8 +791,7 @@ export default function SeatPlan() {
                 (room) => {
                   const columnCount =
                     getColumnCount(
-                      room.roomInfo,
-                      room.seats
+                      room.roomInfo
                     );
 
                   const rows =
@@ -945,219 +925,55 @@ export default function SeatPlan() {
       <div className="seat-plan-print">
         <div className="print-header">
           <h1>
-            {getExamTitle(
-              selectedExamData
-            )}
+            STUDENT LIST - {getExamTitle(selectedExamData)}
           </h1>
 
           <h2>
-            Seat Plan
             {selectedExamData?.exam_date
-              ? ` - ${getDateText(
-                  selectedExamData
-                )}`
-              : ''}
-            {getTimeText(
-              selectedExamData
-            )
-              ? ` - ${getTimeText(
-                  selectedExamData
-                )}`
+              ? getDateText(selectedExamData)
+              : 'Exam schedule'}
+            {getTimeText(selectedExamData)
+              ? ` - ${getTimeText(selectedExamData)}`
               : ''}
           </h2>
         </div>
 
-        {roomGroups.map((room) => {
-          const columnCount =
-            getColumnCount(
-              room.roomInfo,
-              room.seats
-            );
-
-          const rows =
-            buildRoomRows(
-              room.seats,
-              columnCount
-            );
-
-          return (
-            <section
-              className="print-room"
-              key={room.id}
-            >
-              <h3>
-                {room.building} — Room{' '}
-                {room.label}
-              </h3>
-
-              <table className="print-seat-table">
-                <thead>
-                  <tr>
-                    <th>Row</th>
-
-                    {Array.from(
-                      {
-                        length:
-                          columnCount
-                      },
-                      (_, index) => (
-                        <th key={index}>
-                          Seat{' '}
-                          {index + 1}
-                        </th>
-                      )
-                    )}
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {rows.map(
-                    (
-                      row,
-                      rowIndex
-                    ) => (
-                      <tr
-                        key={
-                          rowIndex
-                        }
-                      >
-                        <td>
-                          {rowIndex +
-                            1}
-                        </td>
-
-                        {Array.from(
-                          {
-                            length:
-                              columnCount
-                          },
-                          (
-                            _,
-                            columnIndex
-                          ) => {
-                            const item =
-                              row[
-                                columnIndex
-                              ];
-
-                            return (
-                              <td
-                                key={
-                                  columnIndex
-                                }
-                              >
-                                {item
-                                  ? getCourseLabel(
-                                      item
-                                    )
-                                  : ''}
-                              </td>
-                            );
-                          }
-                        )}
-                      </tr>
-                    )
-                  )}
-                </tbody>
-              </table>
-            </section>
-          );
-        })}
-
-        {summary.length > 0 && (
+        {studentListRows.length > 0 && (
           <section className="print-summary">
-            <h2>
-              Course-wise Seat Allocation Summary
-            </h2>
-
-            <table className="summary-table">
+            <table className="student-list-table">
               <thead>
                 <tr>
-                  <th>
-                    Course
-                  </th>
-
-                  {roomGroups.map(
-                    (room) => (
-                      <th
-                        key={
-                          room.id
-                        }
-                      >
-                        {room.label}
-                      </th>
-                    )
-                  )}
-
-                  <th>
-                    Total
-                  </th>
+                  <th>Course</th>
+                  {roomGroups.map((room) => (
+                    <th key={room.id}>
+                      {room.building ? `${room.building} ` : ''}
+                      {room.label}
+                    </th>
+                  ))}
+                  <th>Total</th>
                 </tr>
               </thead>
 
               <tbody>
-                {summary.map(
-                  (course) => (
-                    <tr
-                      key={
-                        course.course
-                      }
-                    >
-                      <td>
-                        {
-                          course.course
-                        }
+                {studentListRows.map((row) => (
+                  <tr key={row.course}>
+                    <td>{row.course}</td>
+                    {row.rooms.map((room) => (
+                      <td key={room.id}>
+                        {room.students.map((studentId) => (
+                          <div key={studentId}>{studentId}</div>
+                        ))}
                       </td>
-
-                      {roomGroups.map(
-                        (room) => (
-                          <td
-                            key={
-                              room.id
-                            }
-                          >
-                            {course
-                              .rooms[
-                              room.id
-                            ] || 0}
-                          </td>
-                        )
-                      )}
-
-                      <td>
-                        {
-                          course.total
-                        }
-                      </td>
-                    </tr>
-                  )
-                )}
-
-                <tr>
-                  <td>
-                    Total
-                  </td>
-
-                  {roomGroups.map(
-                    (room) => (
-                      <td
-                        key={
-                          room.id
-                        }
-                      >
-                        {
-                          room.seats
-                            .length
-                        }
-                      </td>
-                    )
-                  )}
-
-                  <td>
-                    {
-                      allocations.length
-                    }
-                  </td>
+                    ))}
+                    <td>{row.total}</td>
+                  </tr>
+                ))}
+                <tr className="student-list-total">
+                  <td>Total</td>
+                  {roomGroups.map((room) => (
+                    <td key={room.id}>{room.seats.length}</td>
+                  ))}
+                  <td>{allocations.length}</td>
                 </tr>
               </tbody>
             </table>
@@ -1286,6 +1102,42 @@ export default function SeatPlan() {
 
           .print-summary {
             margin-top: 8mm;
+          }
+
+          .student-list-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            font-size: 9px;
+          }
+
+          .student-list-table th,
+          .student-list-table td {
+            border: 1px solid #000;
+            padding: 4px;
+            text-align: center;
+            vertical-align: top;
+          }
+
+          .student-list-table th:first-child,
+          .student-list-table td:first-child {
+            width: 18%;
+            text-align: left;
+            font-weight: 700;
+          }
+
+          .student-list-table th:last-child,
+          .student-list-table td:last-child {
+            width: 7%;
+            font-weight: 700;
+          }
+
+          .student-list-table td div {
+            line-height: 1.35;
+          }
+
+          .student-list-total td {
+            font-weight: 700;
           }
 
           .print-summary h2 {

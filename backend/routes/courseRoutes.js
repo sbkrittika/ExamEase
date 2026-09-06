@@ -3,7 +3,8 @@ const express = require("express");
 const {
     addCourse,
     getCourses,
-    deleteCourse
+    deleteCourse,
+    updateCourse
 } = require("../controllers/courseController");
 const { authenticate, allowRoles } = require("../middleware/auth");
 
@@ -15,6 +16,7 @@ router.post("/", allowRoles("faculty"), addCourse);
 
 
 router.get("/", allowRoles("faculty"), getCourses);
+router.put("/:code/:section", allowRoles("faculty"), updateCourse);
 router.delete("/:code/:section", allowRoles("faculty"), deleteCourse);
 
 module.exports = router;

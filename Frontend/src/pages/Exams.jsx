@@ -110,6 +110,7 @@ export default function Exams() {
 
   const [form, setForm] = useState({
     course: '',
+    department: 'CSE',
     date: '',
     timeRange: '',
     semester: '',
@@ -143,6 +144,7 @@ export default function Exams() {
       ).map((exam) => ({
         id: exam.exam_id,
         course: exam.course_code || '',
+        department: exam.department || 'CSE',
         date: exam.exam_date
           ? String(exam.exam_date).slice(0, 10)
           : '',
@@ -275,6 +277,7 @@ export default function Exams() {
   const resetForm = () => {
     setForm({
       course: '',
+      department: 'CSE',
       date: '',
       timeRange: '',
       semester: '',
@@ -328,6 +331,7 @@ export default function Exams() {
         time_range: form.timeRange,
         exam_type: form.examType,
         course_code: courseCode,
+        department: form.department,
         semester: Number(form.semester),
         sections: form.sections,
         total_students: parsedStudents.length
@@ -422,6 +426,7 @@ export default function Exams() {
 
       setForm({
         course: exam.course || '',
+        department: exam.department || 'CSE',
         date: exam.date || '',
         timeRange: `${exam.time || ''}-${exam.endTime || ''}`,
         semester: '',
@@ -536,6 +541,7 @@ export default function Exams() {
 
   const eligibleStudents = students.filter((student) =>
     (!form.course || String(student.course_code || '').trim() === getCourseCode(form.course))
+    && (!form.department || String(student.department || '').trim() === String(form.department))
     && (!form.semester || String(student.semester) === String(form.semester))
     && (!form.sections.length || form.sections.includes(String(student.section || '1')))
   );
@@ -642,19 +648,25 @@ export default function Exams() {
                 {courses.map((course) => (
                   <option
                     key={`${course.course_code}-${course.section}`}
-                    value={`${course.course_code}${
-                      course.section
-                        ? `.${course.section}`
-                        : ''
-                    }: ${course.course_title}`}
+                    value={`${course.course_code}: ${course.course_title}`}
                   >
-                    {course.course_code}
-                    {course.section
-                      ? `.${course.section}`
-                      : ''}
-                    : {course.course_title}
+                    {course.course_title}
+                    {course.section ? ` (Section ${course.section})` : ''}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Department *
+              </label>
+              <select name="department" value={form.department} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="CSE">CSE</option>
+                <option value="EEE">EEE</option>
+                <option value="BBA">BBA</option>
+                <option value="Mathematics">Mathematics</option>
+                <option value="Physics">Physics</option>
               </select>
             </div>
 

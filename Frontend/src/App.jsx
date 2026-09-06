@@ -19,6 +19,7 @@ import Rooms from "./pages/Rooms";
 import Exams from "./pages/Exams";
 import SeatPlan from "./pages/SeatPlan";
 import Invigilation from "./pages/Invigilation";
+import Routine from "./pages/Routine";
 import StudentDashboard from "./pages/StudentDashboard";
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("token");
@@ -101,6 +102,10 @@ function App() {
           <Route
             path="exams"
             element={<Exams />}
+          />
+          <Route
+            path="routine"
+            element={<Routine />}
           />
 
           <Route

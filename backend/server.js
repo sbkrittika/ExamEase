@@ -60,7 +60,7 @@ const tables = [
     ) ENGINE=InnoDB`,
     `CREATE TABLE IF NOT EXISTS students (
         student_id VARCHAR(30) PRIMARY KEY, student_name VARCHAR(150) NOT NULL,
-        semester INT NOT NULL, section VARCHAR(20) NOT NULL DEFAULT '1', course_code VARCHAR(30) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        semester INT NOT NULL, section VARCHAR(20) NOT NULL DEFAULT '1', course_code VARCHAR(30) NOT NULL, department VARCHAR(100), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         KEY course_code_idx (course_code)
     ) ENGINE=InnoDB`,
     `CREATE TABLE IF NOT EXISTS rooms (
@@ -97,6 +97,7 @@ const migrations = [
     "ALTER TABLE courses ADD COLUMN credit DECIMAL(3,1) NOT NULL DEFAULT 3",
     "ALTER TABLE students ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
     ,"ALTER TABLE students ADD COLUMN section VARCHAR(20) NOT NULL DEFAULT '1'"
+    ,"ALTER TABLE students ADD COLUMN department VARCHAR(100)"
     ,"UPDATE courses SET section = '1' WHERE section = 'A'"
     ,"UPDATE students SET section = '1' WHERE section = 'A'"
 ];

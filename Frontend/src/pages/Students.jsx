@@ -8,6 +8,7 @@ export default function Students() {
   const [showForm, setShowForm] = useState(false);
   const [status, setStatus] = useState('');
   const [semesterFilter, setSemesterFilter] = useState('');
+  const [editingStudent, setEditingStudent] = useState(null);
   const [form, setForm] = useState({ id: '', name: '', email: '', department: 'CSE', semester: '1', section: '1' });
 
   useEffect(() => {
@@ -33,6 +34,7 @@ export default function Students() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
   const handleEdit = (student) => {
+    setEditingStudent(student);
     setForm({ id: student.id, name: student.name, email: student.email, department: student.department, semester: String(student.semester || '1'), section: student.section || '1' });
     setShowForm(true);
   };
@@ -54,14 +56,19 @@ export default function Students() {
     };
 
     try {
-      await apiRequest('/api/students', { method: 'POST', body: JSON.stringify({
-        student_id: newStudent.id, student_name: newStudent.name, semester: Number(form.semester) || 1, section: newStudent.section, course_code: newStudent.department
-      }) });
+      await apiRequest(editingStudent ? `/api/students/${encodeURIComponent(editingStudent.id)}` : '/api/students', {
+        method: editingStudent ? 'PUT' : 'POST',
+        body: JSON.stringify({
+          student_id: newStudent.id, student_name: newStudent.name, semester: Number(form.semester) || 1,
+          section: newStudent.section, department: newStudent.department, course_code: newStudent.department
+        })
+      });
       setStudents((prev) => [newStudent, ...prev.filter((item) => item.id !== newStudent.id)]);
     } catch (error) { setStatus(error.message); return; }
     setForm({ id: '', name: '', email: '', department: 'CSE', semester: '1', section: '1' });
+    setEditingStudent(null);
     setShowForm(false);
-    setStatus('Student added successfully.');
+    setStatus(editingStudent ? 'Student updated successfully.' : 'Student added successfully.');
   };
 
   return (
@@ -85,8 +92,8 @@ export default function Students() {
       {showForm && (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-slate-900">Add Student</h2>
-            <button type="button" onClick={() => setShowForm(false)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"><X size={18} /></button>
+            <h2 className="font-semibold text-slate-900">{editingStudent ? 'Edit Student' : 'Add Student'}</h2>
+            <button type="button" onClick={() => { setShowForm(false); setEditingStudent(null); }} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"><X size={18} /></button>
           </div>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div><label className="block text-sm font-medium text-slate-700 mb-1">Student ID</label><input name="id" value={form.id} onChange={handleChange} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="262002910" /></div>

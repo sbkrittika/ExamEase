@@ -56,7 +56,7 @@ const addExam = async (req, res) => {
       await connection.beginTransaction();
 
       const [courses] = await connection.query(
-        'SELECT course_code FROM courses WHERE course_code = ? AND department = ? LIMIT 1',
+        'SELECT course_code, section FROM courses WHERE course_code = ? AND department = ? LIMIT 1',
         [course_code, department]
       );
 
@@ -68,6 +68,13 @@ const addExam = async (req, res) => {
           message: 'Course not found.'
         });
       }
+
+      const [participantCount] = await connection.query(
+        `SELECT COUNT(*) AS total_students
+         FROM student_course_enrollments
+         WHERE course_code = ?`,
+        [course_code]
+      );
 
       const [exam] = await connection.query(
         `INSERT INTO exams
@@ -89,7 +96,7 @@ const addExam = async (req, res) => {
         [
           exam.insertId,
           course_code,
-          Number(total_students)
+          Number(participantCount[0].total_students)
         ]
       );
 
@@ -555,20 +562,34 @@ const uploadZip = async (req, res) => {
         student.student_name || 'Unknown Student',
         student.semester,
         student.section || '1',
-        student.course_code || 'UNASSIGNED'
+        student.course_code || 'UNASSIGNED',
+        student.department || (student.course_code || '').split(/\s+/)[0] || 'General'
       ]);
 
       await connection.query(
         `INSERT INTO students
-          (student_id, student_name, semester, section, course_code)
+          (student_id, student_name, semester, section, course_code, department)
          VALUES ?
          ON DUPLICATE KEY UPDATE
           student_name = VALUES(student_name),
           semester = VALUES(semester),
           section = VALUES(section),
-          course_code = VALUES(course_code)`,
+          course_code = VALUES(course_code),
+          department = VALUES(department)`,
         [studentRows]
       );
+
+      const enrollmentRows = uniqueStudents
+        .filter((student) => student.course_code)
+        .map((student) => [student.student_id, student.course_code, student.section || '1']);
+      if (enrollmentRows.length) {
+        await connection.query(
+          `INSERT IGNORE INTO student_course_enrollments
+            (student_id, course_code, course_section)
+          VALUES ?`,
+          [enrollmentRows]
+        );
+      }
 
       await connection.commit();
 
@@ -612,7 +633,7 @@ const allocate = async (req, res) => {
 
   try {
     const [examRows] = await db.promise().query(
-      'SELECT exam_id FROM exams WHERE exam_id = ? LIMIT 1',
+      'SELECT exam_id, exam_date, start_time, end_time FROM exams WHERE exam_id = ? LIMIT 1',
       [exam_id]
     );
 
@@ -620,6 +641,46 @@ const allocate = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Exam not found.'
+      });
+    }
+
+    const [roomConflicts] = await db.promise().query(
+      `SELECT DISTINCT r.room_number
+       FROM seat_allocations existing_allocation
+       JOIN exams existing_exam ON existing_exam.exam_id = existing_allocation.exam_id
+       JOIN rooms r ON r.room_id = existing_allocation.room_id
+       WHERE existing_allocation.exam_id <> ?
+         AND existing_exam.exam_date = (SELECT exam_date FROM exams WHERE exam_id = ?)
+         AND existing_exam.start_time < (SELECT end_time FROM exams WHERE exam_id = ?)
+         AND existing_exam.end_time > (SELECT start_time FROM exams WHERE exam_id = ?)
+         AND existing_allocation.room_id IN (?)`,
+      [exam_id, exam_id, exam_id, exam_id, roomIds]
+    );
+    if (roomConflicts.length) {
+      return res.status(409).json({
+        success: false,
+        message: `Room conflict: ${roomConflicts.map((room) => room.room_number).join(', ')} is already allocated during this exam time.`
+      });
+    }
+
+    const [studentConflicts] = await db.promise().query(
+      `SELECT DISTINCT enrollment.student_id, other_course.course_code
+       FROM exam_courses current_course
+       JOIN student_course_enrollments enrollment ON enrollment.course_code = current_course.course_code
+       JOIN student_course_enrollments other_enrollment ON other_enrollment.student_id = enrollment.student_id
+       JOIN exam_courses other_course ON other_course.course_code = other_enrollment.course_code
+       JOIN exams other_exam ON other_exam.exam_id = other_course.exam_id
+       WHERE current_course.exam_id = ?
+         AND other_course.exam_id <> ?
+         AND other_exam.exam_date = (SELECT exam_date FROM exams WHERE exam_id = ?)
+         AND other_exam.start_time < (SELECT end_time FROM exams WHERE exam_id = ?)
+         AND other_exam.end_time > (SELECT start_time FROM exams WHERE exam_id = ?)`,
+      [exam_id, exam_id, exam_id, exam_id, exam_id]
+    );
+    if (studentConflicts.length) {
+      return res.status(409).json({
+        success: false,
+        message: `Student exam conflict detected for ${studentConflicts.length} enrolled student(s).`
       });
     }
 
@@ -687,16 +748,17 @@ const allocate = async (req, res) => {
     ) {
       [rows] = await db.promise().query(
         `SELECT
-          student_id,
-          student_name AS name,
-          course_code,
-          section,
-          semester
-         FROM students
-         WHERE student_id IN (?)
-         AND course_code IN (?)
-         ${hasSectionFilter ? 'AND semester IN (?) AND section IN (?)' : ''}
-         ORDER BY section, student_id`,
+          enrolled_student.student_id,
+          enrolled_student.student_name AS name,
+          enrollment.course_code,
+          enrolled_student.section,
+          enrolled_student.semester
+         FROM student_course_enrollments enrollment
+         JOIN students enrolled_student ON enrolled_student.student_id = enrollment.student_id
+         WHERE enrolled_student.student_id IN (?)
+         AND enrollment.course_code IN (?)
+         ${hasSectionFilter ? 'AND enrolled_student.semester IN (?) AND enrolled_student.section IN (?)' : ''}
+         ORDER BY enrolled_student.section, enrolled_student.student_id`,
         [
          studentIds,
          courseCodes,
@@ -706,15 +768,16 @@ const allocate = async (req, res) => {
     } else {
       [rows] = await db.promise().query(
         `SELECT
-          student_id,
-          student_name AS name,
-          course_code,
-          section,
-          semester
-         FROM students
-         WHERE course_code IN (?)
-         ${hasSectionFilter ? 'AND semester IN (?) AND section IN (?)' : ''}
-         ORDER BY section, student_id`,
+          enrolled_student.student_id,
+          enrolled_student.student_name AS name,
+          enrollment.course_code,
+          enrolled_student.section,
+          enrolled_student.semester
+         FROM student_course_enrollments enrollment
+         JOIN students enrolled_student ON enrolled_student.student_id = enrollment.student_id
+         WHERE enrollment.course_code IN (?)
+         ${hasSectionFilter ? 'AND enrolled_student.semester IN (?) AND enrolled_student.section IN (?)' : ''}
+         ORDER BY enrolled_student.section, enrolled_student.student_id`,
         [courseCodes, ...sectionParams]
       );
     }

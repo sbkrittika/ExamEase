@@ -2,6 +2,7 @@
     "scripts": {
         "db:setup": "powershell -ExecutionPolicy Bypass -File ./scripts/setup-local-db.ps1",
         "data:import": "node ./scripts/import-sample-data.js",
+        "data:seed-initial": "node ./scripts/seed-initial-dataset.js",
         "backend": "npm --prefix backend start",
         "frontend": "npm --prefix Frontend run dev -- --host 127.0.0.1"
     },

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, Plus, Edit2, Trash2, X, Printer } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, X, Printer, BookOpen } from 'lucide-react';
 import { apiRequest } from '../api';
 
 export default function Students() {
@@ -9,17 +9,48 @@ export default function Students() {
   const [status, setStatus] = useState('');
   const [semesterFilter, setSemesterFilter] = useState('');
   const [editingStudent, setEditingStudent] = useState(null);
+  const [courses, setCourses] = useState([]);
+  const [courseStudent, setCourseStudent] = useState(null);
+  const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [form, setForm] = useState({ id: '', name: '', email: '', department: 'CSE', semester: '1', section: '1' });
 
   useEffect(() => {
     const loadStudents = () => apiRequest('/api/students').then((data) => setStudents((data.students || []).map((student) => ({
       id: student.student_id, name: student.student_name, email: `${student.student_id}@eastdelta.edu.bd`,
-      department: student.course_code || 'General', semester: student.semester, section: student.section || '1'
+      department: student.department || 'General', semester: student.semester, section: student.section || '1', enrolledCourses: student.enrolled_courses || ''
     })))).catch((error) => setStatus(error.message));
     loadStudents();
+    apiRequest('/api/courses').then((data) => setCourses(data.courses || [])).catch((error) => setStatus(error.message));
     window.addEventListener('examease:data-imported', loadStudents);
     return () => window.removeEventListener('examease:data-imported', loadStudents);
   }, []);
+
+  const openCourseManager = async (student) => {
+    try {
+      const data = await apiRequest(`/api/students/${encodeURIComponent(student.id)}/courses`);
+      setCourseStudent(student);
+      setEnrolledCourses(data.courses || []);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  };
+
+  const addEnrollment = async (event) => {
+    const value = event.target.value;
+    if (!value || !courseStudent) return;
+    const [courseCode, section] = value.split('|');
+    try {
+      await apiRequest(`/api/students/${encodeURIComponent(courseStudent.id)}/courses`, {
+        method: 'POST',
+        body: JSON.stringify({ course_code: courseCode, course_section: section })
+      });
+      const data = await apiRequest(`/api/students/${encodeURIComponent(courseStudent.id)}/courses`);
+      setEnrolledCourses(data.courses || []);
+      event.target.value = '';
+    } catch (error) {
+      setStatus(error.message);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = searchTerm.toLowerCase();
@@ -60,7 +91,7 @@ export default function Students() {
         method: editingStudent ? 'PUT' : 'POST',
         body: JSON.stringify({
           student_id: newStudent.id, student_name: newStudent.name, semester: Number(form.semester) || 1,
-          section: newStudent.section, department: newStudent.department, course_code: newStudent.department
+          section: newStudent.section, department: newStudent.department, course_code: null
         })
       });
       setStudents((prev) => [newStudent, ...prev.filter((item) => item.id !== newStudent.id)]);
@@ -153,7 +184,7 @@ export default function Students() {
                     <td className="px-6 py-4 whitespace-nowrap"><span className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">{student.department}</span></td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{student.semester}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{student.section}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><div className="flex items-center justify-end space-x-2"><button type="button" onClick={() => handleEdit(student)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button><button type="button" onClick={async () => { try { await apiRequest(`/api/students/${student.id}`, { method: 'DELETE' }); setStudents((prev) => prev.filter((item) => item.id !== student.id)); } catch (error) { setStatus(error.message); } }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button></div></td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><div className="flex items-center justify-end space-x-2"><button type="button" onClick={() => openCourseManager(student)} title="Manage courses" className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><BookOpen size={16} /></button><button type="button" onClick={() => handleEdit(student)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button><button type="button" onClick={async () => { try { await apiRequest(`/api/students/${student.id}`, { method: 'DELETE' }); setStudents((prev) => prev.filter((item) => item.id !== student.id)); } catch (error) { setStatus(error.message); } }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button></div></td>
                   </tr>
                 ))}
               </tbody>
@@ -161,6 +192,18 @@ export default function Students() {
           </div>
         )}
       </div>
+      {courseStudent && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4"><h2 className="font-semibold text-slate-900">Courses for {courseStudent.name}</h2><button type="button" onClick={() => setCourseStudent(null)}><X size={18} /></button></div>
+            <select defaultValue="" onChange={addEnrollment} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm mb-4">
+              <option value="">Add a course...</option>
+              {courses.filter((course) => String(course.semester) === String(courseStudent.semester) && (!courseStudent.department || course.department === courseStudent.department)).map((course) => <option key={`${course.course_code}|${course.section}`} value={`${course.course_code}|${course.section}`}>{course.course_code} — {course.course_title}</option>)}
+            </select>
+            <div className="space-y-2">{enrolledCourses.map((course) => <div key={`${course.course_code}-${course.section}`} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm"><span>{course.course_code} — {course.course_title}</span><button type="button" onClick={async () => { try { await apiRequest(`/api/students/${encodeURIComponent(courseStudent.id)}/courses/${encodeURIComponent(course.course_code)}/${encodeURIComponent(course.section)}`, { method: 'DELETE' }); setEnrolledCourses((previous) => previous.filter((item) => item.course_code !== course.course_code || item.section !== course.section)); } catch (error) { setStatus(error.message); } }} className="text-red-600">Remove</button></div>)}</div>
+          </div>
+        </div>
+      )}
       <div className="student-list-print">
         <h1>STUDENT LIST</h1>
         <p>ExamEase student list</p>

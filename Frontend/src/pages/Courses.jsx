@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Plus, Edit2, Trash2, Upload, X } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Upload, X, Users } from 'lucide-react';
 import { apiRequest } from '../api';
 
 export default function Courses() {
@@ -11,6 +11,8 @@ export default function Courses() {
   const [uploading, setUploading] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
   const [semesterFilter, setSemesterFilter] = useState('');
+  const [enrolledCourse, setEnrolledCourse] = useState(null);
+  const [enrolledStudents, setEnrolledStudents] = useState([]);
   const [form, setForm] = useState({ code: '', title: '', credit: '3', department: 'CSE', semester: '1' });
 
   useEffect(() => {
@@ -36,6 +38,16 @@ export default function Courses() {
     setEditingCourse(course);
     setForm({ code: course.code, title: course.title, credit: String(course.credit || 3), department: course.department, semester: String(course.semester || 1) });
     setShowForm(true);
+  };
+
+  const handleViewStudents = async (course) => {
+    try {
+      const data = await apiRequest(`/api/courses/${encodeURIComponent(course.code)}/${encodeURIComponent(course.section || '1')}/students`);
+      setEnrolledCourse(course);
+      setEnrolledStudents(data.students || []);
+    } catch (error) {
+      setStatus(error.message);
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -146,13 +158,22 @@ export default function Courses() {
               <thead><tr className="bg-slate-50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-semibold"><th className="px-6 py-4">Course Code</th><th className="px-6 py-4">Course Title</th><th className="px-6 py-4">Semester</th><th className="px-6 py-4">Credit</th><th className="px-6 py-4">Department</th><th className="px-6 py-4 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((course) => (
-                  <tr key={`${course.code}-${course.section}`} className="hover:bg-slate-50 transition-colors group"><td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900">{course.code}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{course.title}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{course.semester}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{course.credit}.0</td><td className="px-6 py-4 whitespace-nowrap"><span className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">{course.department}</span></td><td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><div className="flex items-center justify-end space-x-2"><button type="button" onClick={() => handleEdit(course)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button><button type="button" onClick={async () => { try { await apiRequest(`/api/courses/${encodeURIComponent(course.code)}/${encodeURIComponent(course.section || '1')}`, { method: 'DELETE' }); setCourses((prev) => prev.filter((item) => !(item.code === course.code && item.section === course.section))); } catch (error) { setStatus(error.message); } }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button></div></td></tr>
+                  <tr key={`${course.code}-${course.section}`} className="hover:bg-slate-50 transition-colors group"><td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900">{course.code}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{course.title}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{course.semester}</td><td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{course.credit}.0</td><td className="px-6 py-4 whitespace-nowrap"><span className="px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">{course.department}</span></td><td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"><div className="flex items-center justify-end space-x-2"><button type="button" onClick={() => handleViewStudents(course)} title="View enrolled students" className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"><Users size={16} /></button><button type="button" onClick={() => handleEdit(course)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button><button type="button" onClick={async () => { try { await apiRequest(`/api/courses/${encodeURIComponent(course.code)}/${encodeURIComponent(course.section || '1')}`, { method: 'DELETE' }); setCourses((prev) => prev.filter((item) => !(item.code === course.code && item.section === course.section))); } catch (error) { setStatus(error.message); } }} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button></div></td></tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
       </div>
+      {enrolledCourse && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4"><h2 className="font-semibold text-slate-900">{enrolledCourse.code} students</h2><button type="button" onClick={() => setEnrolledCourse(null)}><X size={18} /></button></div>
+            <p className="text-sm text-slate-500 mb-3">{enrolledStudents.length} enrolled student(s)</p>
+            <div className="max-h-80 overflow-y-auto space-y-2">{enrolledStudents.map((student) => <div key={student.student_id} className="rounded-xl bg-slate-50 px-3 py-2 text-sm">{student.student_id} — {student.student_name} (Section {student.section})</div>)}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

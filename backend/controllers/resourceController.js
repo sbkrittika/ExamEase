@@ -13,7 +13,12 @@ const asError = (res, message, err) => {
 const listStudents = async (req, res) => {
     try {
         const [rows] = await db.promise().query(
-            "SELECT student_id, student_name, semester, section, course_code, department FROM students ORDER BY student_name, student_id"
+            `SELECT s.student_id, s.student_name, s.semester, s.section, s.course_code, s.department,
+                    GROUP_CONCAT(DISTINCT e.course_code ORDER BY e.course_code SEPARATOR ',') AS enrolled_courses
+             FROM students s
+             LEFT JOIN student_course_enrollments e ON e.student_id = s.student_id
+             GROUP BY s.student_id
+             ORDER BY s.student_name, s.student_id`
         );
 
         res.json({
@@ -35,10 +40,10 @@ const saveStudent = async (req, res) => {
         department
     } = req.body || {};
 
-    if (!student_id || !student_name || !semester || !section || !course_code) {
+    if (!student_id || !student_name || !semester || !section) {
         return res.status(400).json({
             success: false,
-            message: "Student ID, name, semester and course are required."
+            message: "Student ID, name, semester and section are required."
         });
     }
 
@@ -50,7 +55,7 @@ const saveStudent = async (req, res) => {
                 String(student_name).trim(),
                 Number(semester),
                 String(section).trim(),
-                String(course_code).trim(),
+                course_code ? String(course_code).trim() : null,
                 department || null
             ]
         );
@@ -66,13 +71,13 @@ const saveStudent = async (req, res) => {
 
 const updateStudent = async (req, res) => {
     const { student_name, semester, section, course_code, department } = req.body || {};
-    if (!student_name || !semester || !section || !course_code) {
-        return res.status(400).json({ success: false, message: "Student name, semester, section and course are required." });
+    if (!student_name || !semester || !section) {
+        return res.status(400).json({ success: false, message: "Student name, semester and section are required." });
     }
     try {
         const [result] = await db.promise().query(
             "UPDATE students SET student_name = ?, semester = ?, section = ?, course_code = ?, department = ? WHERE student_id = ?",
-            [String(student_name).trim(), Number(semester), String(section).trim(), String(course_code).trim(), department || null, req.params.id]
+            [String(student_name).trim(), Number(semester), String(section).trim(), course_code ? String(course_code).trim() : null, department || null, req.params.id]
         );
         if (!result.affectedRows) return res.status(404).json({ success: false, message: "Student not found." });
         res.json({ success: true, message: "Student updated successfully." });
@@ -94,6 +99,70 @@ const deleteStudent = async (req, res) => {
         });
     } catch (err) {
         asError(res, "Failed to delete student.", err);
+    }
+};
+
+const listStudentCourses = async (req, res) => {
+    try {
+        const [rows] = await db.promise().query(
+            `SELECT c.course_code, c.section, c.course_title, c.department, c.semester, c.credit
+             FROM student_course_enrollments e
+             JOIN courses c ON c.course_code = e.course_code AND c.section = e.course_section
+             WHERE e.student_id = ?
+             ORDER BY c.semester, c.course_code`,
+            [req.params.id]
+        );
+        res.json({ success: true, courses: rows });
+    } catch (err) {
+        asError(res, "Failed to fetch student courses.", err);
+    }
+};
+
+const enrollStudent = async (req, res) => {
+    const { course_code, course_section = "1" } = req.body || {};
+    if (!course_code) return res.status(400).json({ success: false, message: "Course code is required." });
+    try {
+        const [students] = await db.promise().query("SELECT student_id FROM students WHERE student_id = ? LIMIT 1", [req.params.id]);
+        if (!students.length) return res.status(404).json({ success: false, message: "Student not found." });
+        const [courses] = await db.promise().query("SELECT course_code FROM courses WHERE course_code = ? AND section = ? LIMIT 1", [course_code, course_section]);
+        if (!courses.length) return res.status(404).json({ success: false, message: "Course not found." });
+        await db.promise().query(
+            "INSERT INTO student_course_enrollments (student_id, course_code, course_section) VALUES (?, ?, ?)",
+            [req.params.id, String(course_code).trim(), String(course_section).trim()]
+        );
+        res.status(201).json({ success: true, message: "Course enrolled successfully." });
+    } catch (err) {
+        if (err.code === "ER_DUP_ENTRY") return res.status(409).json({ success: false, message: "Student is already enrolled in this course." });
+        asError(res, "Failed to enroll student.", err);
+    }
+};
+
+const removeEnrollment = async (req, res) => {
+    try {
+        const [result] = await db.promise().query(
+            "DELETE FROM student_course_enrollments WHERE student_id = ? AND course_code = ? AND course_section = ?",
+            [req.params.id, req.params.courseCode, req.params.section || "1"]
+        );
+        if (!result.affectedRows) return res.status(404).json({ success: false, message: "Enrollment not found." });
+        res.json({ success: true, message: "Course removed from student." });
+    } catch (err) {
+        asError(res, "Failed to remove enrollment.", err);
+    }
+};
+
+const listCourseStudents = async (req, res) => {
+    try {
+        const [rows] = await db.promise().query(
+            `SELECT s.student_id, s.student_name, s.department, s.semester, s.section
+             FROM student_course_enrollments e
+             JOIN students s ON s.student_id = e.student_id
+             WHERE e.course_code = ? AND e.course_section = ?
+             ORDER BY s.section, s.student_id`,
+            [req.params.code, req.params.section || "1"]
+        );
+        res.json({ success: true, students: rows });
+    } catch (err) {
+        asError(res, "Failed to fetch enrolled students.", err);
     }
 };
 
@@ -395,6 +464,22 @@ const assignInvigilator = async (req, res) => {
     }
 
     try {
+        const [conflicts] = await db.promise().query(
+            `SELECT ia.assignment_id
+             FROM invigilator_assignments ia
+             JOIN exams existing_exam ON existing_exam.exam_id = ia.exam_id
+             JOIN exams selected_exam ON selected_exam.exam_id = ?
+             WHERE ia.faculty_id = ?
+               AND existing_exam.exam_id <> ?
+               AND existing_exam.exam_date = selected_exam.exam_date
+               AND existing_exam.start_time < selected_exam.end_time
+               AND existing_exam.end_time > selected_exam.start_time
+             LIMIT 1`,
+            [exam_id, faculty_id, exam_id]
+        );
+        if (conflicts.length) {
+            return res.status(409).json({ success: false, message: "This invigilator is already assigned during the selected exam time." });
+        }
         await db.promise().query(
             "INSERT INTO invigilator_assignments (exam_id,room_id,faculty_id) VALUES (?,?,?) ON DUPLICATE KEY UPDATE room_id=VALUES(room_id)",
             [
@@ -431,6 +516,10 @@ const removeAssignment = async (req, res) => {
 
 module.exports = {
     listStudents,
+    listStudentCourses,
+    enrollStudent,
+    removeEnrollment,
+    listCourseStudents,
     saveStudent,
     updateStudent,
     deleteStudent,

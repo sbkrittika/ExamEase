@@ -121,10 +121,18 @@ CREATE TABLE `students` (
   `semester` int(11) NOT NULL,
   `section` varchar(20) NOT NULL DEFAULT '1',
   `department` varchar(30) DEFAULT NULL,
-  `course_code` varchar(30) NOT NULL
+  `course_code` varchar(30) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
+
+CREATE TABLE `student_course_enrollments` (
+  `enrollment_id` int(11) NOT NULL,
+  `student_id` varchar(20) NOT NULL,
+  `course_code` varchar(30) NOT NULL,
+  `course_section` varchar(10) NOT NULL DEFAULT '1',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Table structure for table `users`
@@ -200,12 +208,19 @@ ALTER TABLE `students`
   ADD PRIMARY KEY (`student_id`),
   ADD KEY `course_code` (`course_code`);
 
+ALTER TABLE `student_course_enrollments`
+  ADD PRIMARY KEY (`enrollment_id`),
+  ADD UNIQUE KEY `student_course_unique` (`student_id`,`course_code`,`course_section`);
+
 --
 -- Indexes for table `users`
 --
 ALTER TABLE `users`
   ADD PRIMARY KEY (`user_id`),
   ADD UNIQUE KEY `email` (`email`);
+
+ALTER TABLE `student_course_enrollments`
+  MODIFY `enrollment_id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for dumped tables
@@ -286,6 +301,10 @@ ALTER TABLE `seat_allocations`
 --
 ALTER TABLE `students`
   ADD CONSTRAINT `students_ibfk_1` FOREIGN KEY (`course_code`) REFERENCES `courses` (`course_code`);
+
+ALTER TABLE `student_course_enrollments`
+  ADD CONSTRAINT `enrollment_student_fk` FOREIGN KEY (`student_id`) REFERENCES `students` (`student_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `enrollment_course_fk` FOREIGN KEY (`course_code`,`course_section`) REFERENCES `courses` (`course_code`,`section`) ON DELETE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

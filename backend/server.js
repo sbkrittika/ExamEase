@@ -60,8 +60,18 @@ const tables = [
     ) ENGINE=InnoDB`,
     `CREATE TABLE IF NOT EXISTS students (
         student_id VARCHAR(30) PRIMARY KEY, student_name VARCHAR(150) NOT NULL,
-        semester INT NOT NULL, section VARCHAR(20) NOT NULL DEFAULT '1', course_code VARCHAR(30) NOT NULL, department VARCHAR(100), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        semester INT NOT NULL, section VARCHAR(20) NOT NULL DEFAULT '1', course_code VARCHAR(30), department VARCHAR(100), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         KEY course_code_idx (course_code)
+    ) ENGINE=InnoDB`,
+    `CREATE TABLE IF NOT EXISTS student_course_enrollments (
+        enrollment_id INT AUTO_INCREMENT PRIMARY KEY,
+        student_id VARCHAR(30) NOT NULL,
+        course_code VARCHAR(30) NOT NULL,
+        course_section VARCHAR(10) NOT NULL DEFAULT '1',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY student_course_unique (student_id, course_code, course_section),
+        CONSTRAINT enrollment_student_fk FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
+        CONSTRAINT enrollment_course_fk FOREIGN KEY (course_code, course_section) REFERENCES courses(course_code, section) ON DELETE CASCADE
     ) ENGINE=InnoDB`,
     `CREATE TABLE IF NOT EXISTS rooms (
         room_id INT AUTO_INCREMENT PRIMARY KEY, room_number VARCHAR(30) NOT NULL UNIQUE,
@@ -98,6 +108,7 @@ const migrations = [
     "ALTER TABLE students ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
     ,"ALTER TABLE students ADD COLUMN section VARCHAR(20) NOT NULL DEFAULT '1'"
     ,"ALTER TABLE students ADD COLUMN department VARCHAR(100)"
+    ,"ALTER TABLE students MODIFY COLUMN course_code VARCHAR(30) NULL"
     ,"UPDATE courses SET section = '1' WHERE section = 'A'"
     ,"UPDATE students SET section = '1' WHERE section = 'A'"
 ];

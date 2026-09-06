@@ -1,6 +1,7 @@
 const express = require("express");
 const {
-    listStudents, saveStudent, updateStudent, deleteStudent, listFaculty,
+    listStudents, listStudentCourses, enrollStudent, removeEnrollment, listCourseStudents,
+    saveStudent, updateStudent, deleteStudent, listFaculty,
     listRooms, saveRoom, deleteRoom, dashboard, mySchedule, saveFaculty,
     listAssignments, assignInvigilator, removeAssignment
 } = require("../controllers/resourceController");
@@ -14,6 +15,10 @@ router.get("/students", allowRoles("faculty"), listStudents);
 router.post("/students", allowRoles("faculty"), saveStudent);
 router.put("/students/:id", allowRoles("faculty"), updateStudent);
 router.delete("/students/:id", allowRoles("faculty"), deleteStudent);
+router.get("/students/:id/courses", allowRoles("faculty"), listStudentCourses);
+router.post("/students/:id/courses", allowRoles("faculty"), enrollStudent);
+router.delete("/students/:id/courses/:courseCode/:section", allowRoles("faculty"), removeEnrollment);
+router.get("/courses/:code/:section/students", allowRoles("faculty"), listCourseStudents);
 router.get("/faculty", allowRoles("faculty"), listFaculty);
 router.post("/faculty", allowRoles("faculty"), saveFaculty);
 router.get("/rooms", allowRoles("faculty"), listRooms);

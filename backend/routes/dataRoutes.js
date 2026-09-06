@@ -1,5 +1,5 @@
 const express = require("express");
-const { getFaculty, getRooms, getStudents, dashboard, addStudent, deleteStudent, addRoom, deleteRoom, addFaculty, deleteFaculty, getAssignments, addAssignment, deleteAssignment } = require("../controllers/dataController");
+const { getFaculty, getRooms, getStudents, dashboard, addStudent, updateStudent, deleteStudent, addRoom, deleteRoom, addFaculty, deleteFaculty, getAssignments, addAssignment, deleteAssignment } = require("../controllers/dataController");
 
 const router = express.Router();
 
@@ -10,6 +10,7 @@ router.get("/rooms", getRooms);
 router.get("/students", getStudents);
 router.get("/dashboard", dashboard);
 router.post("/students", addStudent);
+router.put("/students/:id", updateStudent);
 router.delete("/students/:id", deleteStudent);
 router.post("/rooms", addRoom);
 router.delete("/rooms/:id", deleteRoom);

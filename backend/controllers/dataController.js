@@ -23,7 +23,7 @@ const getRooms = (req, res) => {
 
 const getStudents = (req, res) => {
     db.query(
-        "SELECT student_id, student_number, name, email, department, semester, course_code FROM students ORDER BY student_id",
+        "SELECT student_id, student_name, semester, section, course_code, department FROM students ORDER BY student_id",
         (err, results) => {
             if (err) return res.status(500).json({ success: false, message: "Failed to fetch students.", error: err.message });
             res.json({ success: true, students: results });
@@ -45,12 +45,26 @@ const dashboard = (req, res) => {
 };
 
 const addStudent = (req, res) => {
-    const { student_id, student_number, name, email, department, semester, course_code } = req.body;
-    if (!student_id || !name) return res.status(400).json({ success: false, message: "Student ID and name are required." });
-    db.query("INSERT INTO students (student_id, student_number, name, email, department, semester, course_code) VALUES (?, ?, ?, ?, ?, ?, ?)", [student_id.trim(), student_number || null, name.trim(), email || null, department || null, semester || 1, course_code ? course_code.trim() : null], (err) => {
+    const { student_id, student_name, department, semester, section, course_code } = req.body;
+    if (!student_id || !student_name || !course_code) return res.status(400).json({ success: false, message: "Student ID, name and course are required." });
+    db.query("INSERT INTO students (student_id, student_name, semester, section, course_code, department) VALUES (?, ?, ?, ?, ?, ?)", [student_id.trim(), student_name.trim(), semester || 1, section || "1", course_code.trim(), department || null], (err) => {
         if (err) return res.status(err.code === "ER_DUP_ENTRY" ? 409 : 500).json({ success: false, message: err.code === "ER_DUP_ENTRY" ? "Student ID already exists." : "Failed to add student.", error: err.message });
         res.status(201).json({ success: true, message: "Student added successfully." });
     });
+};
+
+const updateStudent = (req, res) => {
+    const { student_name, department, semester, section, course_code } = req.body || {};
+    if (!student_name || !course_code) return res.status(400).json({ success: false, message: "Student name and course are required." });
+    db.query(
+        "UPDATE students SET student_name = ?, semester = ?, section = ?, course_code = ?, department = ? WHERE student_id = ?",
+        [student_name.trim(), semester || 1, section || "1", course_code.trim(), department || null, req.params.id],
+        (err, result) => {
+            if (err) return res.status(500).json({ success: false, message: "Failed to update student.", error: err.message });
+            if (!result.affectedRows) return res.status(404).json({ success: false, message: "Student not found." });
+            res.json({ success: true, message: "Student updated successfully." });
+        }
+    );
 };
 
 const deleteStudent = (req, res) => {
@@ -130,4 +144,4 @@ const deleteAssignment = (req, res) => {
     });
 };
 
-module.exports = { getFaculty, getRooms, getStudents, dashboard, addStudent, deleteStudent, addRoom, deleteRoom, addFaculty, deleteFaculty, getAssignments, addAssignment, deleteAssignment };
+module.exports = { getFaculty, getRooms, getStudents, dashboard, addStudent, updateStudent, deleteStudent, addRoom, deleteRoom, addFaculty, deleteFaculty, getAssignments, addAssignment, deleteAssignment };

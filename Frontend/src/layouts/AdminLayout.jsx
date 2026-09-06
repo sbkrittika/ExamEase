@@ -14,6 +14,7 @@ import {
   FileText,
   Grid,
   UserCheck,
+  CalendarDays,
   LogOut,
   Menu,
   X
@@ -68,6 +69,11 @@ export default function AdminLayout() {
       name: 'Exams',
       path: '/admin/exams',
       icon: FileText
+    },
+    {
+      name: 'Routine',
+      path: '/admin/routine',
+      icon: CalendarDays
     },
 
     {

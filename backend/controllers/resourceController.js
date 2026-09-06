@@ -13,7 +13,7 @@ const asError = (res, message, err) => {
 const listStudents = async (req, res) => {
     try {
         const [rows] = await db.promise().query(
-            "SELECT student_id, student_name, semester, section, course_code FROM students ORDER BY student_name, student_id"
+            "SELECT student_id, student_name, semester, section, course_code, department FROM students ORDER BY student_name, student_id"
         );
 
         res.json({
@@ -31,7 +31,8 @@ const saveStudent = async (req, res) => {
         student_name,
         semester,
         section,
-        course_code
+        course_code,
+        department
     } = req.body || {};
 
     if (!student_id || !student_name || !semester || !section || !course_code) {
@@ -43,13 +44,14 @@ const saveStudent = async (req, res) => {
 
     try {
         await db.promise().query(
-            "INSERT INTO students (student_id, student_name, semester, section, course_code) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE student_name=VALUES(student_name), semester=VALUES(semester), section=VALUES(section), course_code=VALUES(course_code)",
+            "INSERT INTO students (student_id, student_name, semester, section, course_code, department) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE student_name=VALUES(student_name), semester=VALUES(semester), section=VALUES(section), course_code=VALUES(course_code), department=VALUES(department)",
             [
                 String(student_id).trim(),
                 String(student_name).trim(),
                 Number(semester),
                 String(section).trim(),
-                String(course_code).trim()
+                String(course_code).trim(),
+                department || null
             ]
         );
 
@@ -59,6 +61,23 @@ const saveStudent = async (req, res) => {
         });
     } catch (err) {
         asError(res, "Failed to save student.", err);
+    }
+};
+
+const updateStudent = async (req, res) => {
+    const { student_name, semester, section, course_code, department } = req.body || {};
+    if (!student_name || !semester || !section || !course_code) {
+        return res.status(400).json({ success: false, message: "Student name, semester, section and course are required." });
+    }
+    try {
+        const [result] = await db.promise().query(
+            "UPDATE students SET student_name = ?, semester = ?, section = ?, course_code = ?, department = ? WHERE student_id = ?",
+            [String(student_name).trim(), Number(semester), String(section).trim(), String(course_code).trim(), department || null, req.params.id]
+        );
+        if (!result.affectedRows) return res.status(404).json({ success: false, message: "Student not found." });
+        res.json({ success: true, message: "Student updated successfully." });
+    } catch (err) {
+        asError(res, "Failed to update student.", err);
     }
 };
 
@@ -413,6 +432,7 @@ const removeAssignment = async (req, res) => {
 module.exports = {
     listStudents,
     saveStudent,
+    updateStudent,
     deleteStudent,
     listFaculty,
     listRooms,

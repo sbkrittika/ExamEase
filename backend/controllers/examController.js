@@ -25,6 +25,7 @@ const addExam = async (req, res) => {
     time_range,
     exam_type,
     course_code,
+    department,
     total_students
   } = req.body || {};
 
@@ -38,6 +39,7 @@ const addExam = async (req, res) => {
     !examStart ||
     !examEnd ||
     !course_code ||
+    !department ||
     !Number.isInteger(Number(total_students)) ||
     Number(total_students) < 0
   ) {
@@ -54,8 +56,8 @@ const addExam = async (req, res) => {
       await connection.beginTransaction();
 
       const [courses] = await connection.query(
-        'SELECT course_code FROM courses WHERE course_code = ? LIMIT 1',
-        [course_code]
+        'SELECT course_code FROM courses WHERE course_code = ? AND department = ? LIMIT 1',
+        [course_code, department]
       );
 
       if (!courses.length) {
@@ -127,17 +129,25 @@ const getExams = async (req, res) => {
         e.exam_type,
         e.created_by,
         GROUP_CONCAT(
-          ec.course_code
+          DISTINCT ec.course_code
           ORDER BY ec.course_code
           SEPARATOR ', '
         ) AS course_code,
-        COALESCE(
-          SUM(ec.total_students),
-          0
+        MAX(c.course_title) AS course_title,
+        MAX(c.department) AS department,
+        GROUP_CONCAT(DISTINCT CONCAT(es.semester, ':', es.section) ORDER BY es.semester, es.section SEPARATOR ', ') AS sections,
+        (
+          SELECT COALESCE(SUM(course_totals.total_students), 0)
+          FROM exam_courses course_totals
+          WHERE course_totals.exam_id = e.exam_id
         ) AS total_students
       FROM exams e
       LEFT JOIN exam_courses ec
         ON ec.exam_id = e.exam_id
+      LEFT JOIN courses c
+        ON c.course_code = ec.course_code
+      LEFT JOIN exam_sections es
+        ON es.exam_id = e.exam_id
       GROUP BY e.exam_id
       ORDER BY e.exam_date, e.start_time
     `);

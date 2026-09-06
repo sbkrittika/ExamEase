@@ -58,16 +58,54 @@ const getCourses = async (req, res) => {
 
 const deleteCourse = async (req, res) => {
     try {
-        await db.promise().query("DELETE FROM courses WHERE course_code = ? AND section = ?", [req.params.code, req.params.section || "1"]);
+        const [result] = await db.promise().query("DELETE FROM courses WHERE course_code = ? AND section = ?", [req.params.code, req.params.section || "1"]);
+        if (!result.affectedRows) return res.status(404).json({ success: false, message: "Course not found." });
         res.json({ success: true, message: "Course deleted successfully." });
     } catch (err) {
+        if (err.code === "ER_ROW_IS_REFERENCED_2" || err.code === "ER_ROW_IS_REFERENCED") {
+            return res.status(409).json({ success: false, message: "This course is used by students or exams and cannot be deleted." });
+        }
         console.error("Delete course error:", err.message);
         res.status(500).json({ success: false, message: "Failed to delete course." });
+    }
+};
+
+const updateCourse = async (req, res) => {
+    const { section: currentSection } = req.params;
+    const { course_code, course_title, semester, department, credit } = req.body || {};
+
+    if (!course_code || !course_title || !Number.isInteger(Number(semester)) || Number(semester) < 1 || Number(semester) > 12 || !department) {
+        return res.status(400).json({ success: false, message: "Course code, title, semester and department are required." });
+    }
+
+    try {
+        const [result] = await db.promise().query(
+            `UPDATE courses
+             SET course_code = ?, course_title = ?, semester = ?, department = ?, credit = ?
+             WHERE course_code = ? AND section = ?`,
+            [
+                String(course_code).trim(),
+                String(course_title).trim(),
+                Number(semester),
+                String(department).trim(),
+                Number(credit) || 3,
+                req.params.code,
+                currentSection
+            ]
+        );
+
+        if (!result.affectedRows) return res.status(404).json({ success: false, message: "Course not found." });
+        res.json({ success: true, message: "Course updated successfully." });
+    } catch (err) {
+        if (err.code === "ER_DUP_ENTRY") return res.status(409).json({ success: false, message: "This course already exists." });
+        console.error("Update course error:", err.message);
+        res.status(500).json({ success: false, message: "Failed to update course." });
     }
 };
 
 module.exports = {
     addCourse,
     getCourses,
-    deleteCourse
+    deleteCourse,
+    updateCourse
 };

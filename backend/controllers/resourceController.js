@@ -249,6 +249,7 @@ const updateFaculty = async (req, res) => {
             query += ", password=?";
             fields.push(await bcrypt.hash(String(password), 10));
         }
+        query = query.replace("******", "password_hash=?");
         query += " WHERE user_id=? AND role='faculty'";
         fields.push(req.params.id);
         const [result] = await db.promise().query(query, fields);
@@ -261,21 +262,29 @@ const updateFaculty = async (req, res) => {
 };
 
 const deleteFaculty = async (req, res) => {
+    let connection;
     try {
-        const connection = await db.promise().getConnection();
+        connection = await db.promise().getConnection();
         await connection.beginTransaction();
         await connection.query("DELETE FROM invigilator_assignments WHERE faculty_id=?", [req.params.id]);
         const [result] = await connection.query("DELETE FROM users WHERE user_id=? AND role='faculty'", [req.params.id]);
         if (!result.affectedRows) {
             await connection.rollback();
-            connection.release();
             return res.status(404).json({ success: false, message: "Faculty member not found." });
         }
         await connection.commit();
-        connection.release();
         res.json({ success: true, message: "Faculty deleted successfully." });
     } catch (err) {
+        if (connection) await connection.rollback().catch(() => {});
+        if (err.code === "ER_ROW_IS_REFERENCED_2") {
+            return res.status(409).json({
+                success: false,
+                message: "This faculty member created an exam and cannot be deleted. Reassign or remove those exams first."
+            });
+        }
         asError(res, "Failed to delete faculty.", err);
+    } finally {
+        if (connection) connection.release();
     }
 };
 
@@ -361,6 +370,26 @@ const saveRoom = async (req, res) => {
         }
 
         asError(res, "Failed to save room.", err);
+    }
+};
+
+const updateRoom = async (req, res) => {
+    try {
+        const roomNumber = String(req.body.room_number ?? "").trim();
+        const capacity = Number(req.body.capacity);
+        const status = String(req.body.status ?? "Available") === "Unavailable" ? "Unavailable" : "Available";
+        if (!roomNumber || !Number.isInteger(capacity) || capacity < 1) {
+            return res.status(400).json({ success: false, message: "Room number and a positive capacity are required." });
+        }
+        const [result] = await db.promise().query(
+            "UPDATE rooms SET room_number=?, building=?, capacity=?, status=? WHERE room_id=?",
+            [roomNumber, String(req.body.building ?? "").trim() || null, capacity, status, req.params.id]
+        );
+        if (!result.affectedRows) return res.status(404).json({ success: false, message: "Room not found." });
+        res.json({ success: true, message: "Room updated successfully." });
+    } catch (err) {
+        if (err.code === "ER_DUP_ENTRY") return res.status(409).json({ success: false, message: "A room with this room number already exists." });
+        asError(res, "Failed to update room.", err);
     }
 };
 
@@ -475,12 +504,17 @@ const mySchedule = async (req, res) => {
 const listAssignments = async (req, res) => {
     try {
         const [rows] = await db.promise().query(
-            `SELECT ia.assignment_id,ia.exam_id,ia.room_id,ia.faculty_id,e.exam_date,e.start_time,
+            `SELECT ia.assignment_id,ia.exam_id,ia.room_id,ia.faculty_id,e.exam_date,e.start_time,e.end_time,
+                    GROUP_CONCAT(DISTINCT ec.course_code ORDER BY ec.course_code SEPARATOR ', ') AS course_code,
+                    MAX(c.course_title) AS course_title,
                     r.room_number,r.building,u.full_name AS faculty_name
              FROM invigilator_assignments ia
              JOIN exams e ON e.exam_id=ia.exam_id
+             LEFT JOIN exam_courses ec ON ec.exam_id=e.exam_id
+             LEFT JOIN courses c ON c.course_code=ec.course_code
              JOIN rooms r ON r.room_id=ia.room_id
              JOIN users u ON u.user_id=ia.faculty_id
+             GROUP BY ia.assignment_id,ia.exam_id,ia.room_id,ia.faculty_id,e.exam_date,e.start_time,e.end_time,r.room_number,r.building,u.full_name
              ORDER BY e.exam_date,e.start_time,r.room_number`
         );
 
@@ -598,6 +632,7 @@ module.exports = {
     deleteFaculty,
     listRooms,
     saveRoom,
+    updateRoom,
     deleteRoom,
     dashboard,
     mySchedule,

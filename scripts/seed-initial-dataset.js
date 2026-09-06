@@ -4,7 +4,7 @@ const db = require('../backend/config/db');
 
 const idsPath = path.join(__dirname, '..', 'database', 'seed-student-ids.json');
 
-async function seed() {
+async function seedInitialDataset() {
     const ids = JSON.parse(fs.readFileSync(idsPath, 'utf8'));
     if (!Array.isArray(ids) || ids.length !== 100 || ids.some((id) => !String(id).trim())) {
         throw new Error(`Provide exactly 100 real student IDs in ${idsPath} before seeding.`);
@@ -50,7 +50,11 @@ async function seed() {
     }
 }
 
-seed().catch((error) => {
-    console.error(error.message);
-    process.exitCode = 1;
-});
+if (require.main === module) {
+    seedInitialDataset().catch((error) => {
+        console.error(error.message);
+        process.exitCode = 1;
+    });
+}
+
+module.exports = seedInitialDataset;

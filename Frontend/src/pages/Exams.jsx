@@ -540,7 +540,7 @@ export default function Exams() {
   };
 
   const eligibleStudents = students.filter((student) =>
-    (!form.course || String(student.course_code || '').trim() === getCourseCode(form.course))
+    (!form.course || String(student.enrolled_courses || '').split(',').includes(getCourseCode(form.course)))
     && (!form.department || String(student.department || '').trim() === String(form.department))
     && (!form.semester || String(student.semester) === String(form.semester))
     && (!form.sections.length || form.sections.includes(String(student.section || '1')))

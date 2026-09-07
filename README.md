@@ -487,14 +487,6 @@ The final showcase version of ExamEase uses:
 * Configured examination rooms
 * Configured faculty members
 
-## Team Contributions
-
-| Team Member | Contribution                            |
-| ----------- | --------------------------------------- |
-| Member 1    | Frontend / UI Development               |
-| Member 2    | Backend / REST API Development          |
-| Member 3    | Database Design and Management          |
-| Member 4    | Examination / Seat Allocation / Testing |
 
 ## Future Improvements
 

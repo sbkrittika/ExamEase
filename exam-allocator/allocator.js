@@ -4,7 +4,7 @@ function allocateStudents(students, roomIds, options = {}) {
   if (!Array.isArray(students)) throw new Error('students must be an array');
   if (!Array.isArray(roomIds) || roomIds.length === 0) throw new Error('roomIds must be a non-empty array');
 
-  // Group students by course
+ 
   const courseMap = new Map();
   for (const s of students) {
     const course = s.course_code || 'UNASSIGNED';
@@ -20,16 +20,15 @@ function allocateStudents(students, roomIds, options = {}) {
     };
   }
 
-  // Prepare room objects
+ 
   const rooms = roomIds.map(id => ({ id, students: [], courses: new Set() }));
 
-  // Sort courses by descending student count to place large courses first
+  
   const coursesBySize = Array.from(courseMap.entries()).sort((a, b) => b[1].length - a[1].length);
 
   for (const [course, studs] of coursesBySize) {
     for (const stud of studs) {
-      // find candidate rooms where adding this student's course won't exceed maxCoursesPerRoom
-      // prefer rooms that already have this course, then those with fewest students
+     
       let candidates = rooms.filter(r => r.courses.has(course));
       if (candidates.length === 0) {
         candidates = rooms.filter(r => r.courses.size < maxCoursesPerRoom);
@@ -38,7 +37,7 @@ function allocateStudents(students, roomIds, options = {}) {
         // as a fallback allow any room (shouldn't happen because of earlier check)
         candidates = rooms;
       }
-      // choose room with minimal students
+    
       candidates.sort((a, b) => a.students.length - b.students.length);
       const chosen = candidates[0];
       chosen.students.push(stud);

@@ -287,12 +287,11 @@ Students ─── Student Course Enrollments ─── Courses
 
 ## ER Diagram
 
-![ExamEase ER Diagram](docs/er-diagram.png)
+![ExamEase ER Diagram](er-diagram.png)
 
 ## Use-Case Diagram
 
-![ExamEase Use Case Diagram](docs/use-case-diagram.png)
-
+![ExamEase Use Case Diagram](use-case-diagram.png)
 ## User Interface
 
 ExamEase provides interfaces for:

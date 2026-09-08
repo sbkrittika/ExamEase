@@ -11,9 +11,6 @@ const FACULTY_EMAIL_REGEX =
     /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@eastdelta\.edu\.bd$/i;
 
 
-// =========================
-// REGISTER
-// =========================
 
 const register = async (req, res) => {
     try {
@@ -47,7 +44,7 @@ const register = async (req, res) => {
         const cleanEmail =
             email.trim().toLowerCase();
 
-        // Password match
+     
         if (password !== confirm_password) {
             return res.status(400).json({
                 success: false,
@@ -55,7 +52,7 @@ const register = async (req, res) => {
             });
         }
 
-        // Role validation
+      
         if (
             role !== "student" &&
             role !== "faculty"
@@ -66,7 +63,7 @@ const register = async (req, res) => {
             });
         }
 
-        // University email
+   
         if (
             !cleanEmail.endsWith(
                 UNIVERSITY_DOMAIN
@@ -79,7 +76,7 @@ const register = async (req, res) => {
             });
         }
 
-        // Student email
+       
         if (
             role === "student" &&
             !STUDENT_EMAIL_REGEX.test(cleanEmail)
@@ -91,7 +88,7 @@ const register = async (req, res) => {
             });
         }
 
-        // Faculty email
+      
         if (
             role === "faculty" &&
             !FACULTY_EMAIL_REGEX.test(cleanEmail)
@@ -103,7 +100,7 @@ const register = async (req, res) => {
             });
         }
 
-        // Password length
+       
         if (password.length < 6) {
             return res.status(400).json({
                 success: false,
@@ -112,7 +109,7 @@ const register = async (req, res) => {
             });
         }
 
-        // Check existing email
+       
         const checkEmail =
             "SELECT user_id FROM users WHERE email = ?";
 
@@ -150,7 +147,7 @@ const register = async (req, res) => {
                             10
                         );
 
-                    // Insert user
+                   
                     const sql = `
                         INSERT INTO users
                         (
@@ -237,9 +234,7 @@ const register = async (req, res) => {
 };
 
 
-// =========================
-// LOGIN
-// =========================
+
 
 const login = (req, res) => {
 
@@ -389,9 +384,7 @@ const login = (req, res) => {
 };
 
 
-// =========================
-// CHANGE ADMIN CREDENTIALS
-// =========================
+
 
 const changeAdminCredentials =
     async (req, res) => {

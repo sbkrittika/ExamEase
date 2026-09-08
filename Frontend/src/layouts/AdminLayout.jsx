@@ -29,9 +29,7 @@ export default function AdminLayout() {
   const navigate = useNavigate();
 
 
-  /* ================================
-     NAVIGATION ITEMS
-  ================================= */
+
 
   const navItems = [
 
@@ -91,9 +89,7 @@ export default function AdminLayout() {
   ];
 
 
-  /* ================================
-     LOGOUT
-  ================================= */
+ 
 
   const handleLogout = () => {
   sessionStorage.clear();
@@ -110,9 +106,7 @@ export default function AdminLayout() {
     <div className="min-h-screen bg-slate-50 flex">
 
 
-      {/* =========================
-          MOBILE OVERLAY
-      ========================== */}
+   
 
       {isSidebarOpen && (
 
@@ -124,9 +118,7 @@ export default function AdminLayout() {
       )}
 
 
-      {/* =========================
-          SIDEBAR
-      ========================== */}
+      
 
       <aside
         className={`
@@ -235,9 +227,6 @@ export default function AdminLayout() {
         </nav>
 
 
-        {/* =========================
-            LOGOUT
-        ========================== */}
 
         <div className="p-4 border-t border-slate-800">
 
@@ -270,9 +259,7 @@ export default function AdminLayout() {
       </aside>
 
 
-      {/* =========================
-          MAIN CONTENT
-      ========================== */}
+     
 
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
 

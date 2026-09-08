@@ -25,7 +25,7 @@ const register = async (req, res) => {
             phone
         } = req.body;
 
-        // Required fields
+        
         if (
             !full_name ||
             !email ||
@@ -140,7 +140,7 @@ const register = async (req, res) => {
                 }
 
                 try {
-                    // Hash password
+                    
                     const hashedPassword =
                         await bcrypt.hash(
                             password,
